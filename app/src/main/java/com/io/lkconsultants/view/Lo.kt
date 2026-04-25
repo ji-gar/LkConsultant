@@ -58,6 +58,8 @@ import androidx.lint.kotlin.metadata.Visibility
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.ui.NavDisplay
 import com.io.lkconsultants.R
+import com.io.lkconsultants.color.LKColorScheme
+import com.io.lkconsultants.color.lkColors
 
 import com.io.lkconsultants.ui.theme.LkConsultantsTheme
 import com.io.lkconsultants.view.LoginScreen
@@ -74,32 +76,21 @@ import com.io.lkconsultants.viewmodel.LoginState
 import com.io.lkconsultants.viewmodel.LoginViewModel
 
 
+
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
     viewModel: LoginViewModel = viewModel()
 ) {
-    var email    by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var email       by remember { mutableStateOf("") }
+    var password    by remember { mutableStateOf("") }
     var passVisible by remember { mutableStateOf(false) }
-    val context = LocalContext.current
+    val context     = LocalContext.current
+    val colors      = lkColors                          // ✅ lowercase — dynamic accessor
 
-    val activity = context as FragmentActivity
+    val state     by viewModel.state.collectAsStateWithLifecycle()
+    val isLoading  = state is LoginState.Loading
 
-    val state by viewModel.state.collectAsStateWithLifecycle()
-
-//    LaunchedEffect(true) {
-//
-//        showBiometricPrompt(activity, onSuccess = {},
-//            onError = {
-//
-//            }
-//
-//            )
-//    }
-
-
-    // React to state changes
     LaunchedEffect(state) {
         when (state) {
             is LoginState.Success -> onLoginSuccess()
@@ -110,12 +101,10 @@ fun LoginScreen(
         }
     }
 
-    val isLoading = state is LoginState.Loading
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(colors.background)              // ✅ camelCase
     ) {
         Column(
             modifier = Modifier
@@ -126,59 +115,63 @@ fun LoginScreen(
                 .padding(horizontal = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Logo
+
             Image(
-                painter = painterResource(R.drawable.lklogo),
-                contentScale = ContentScale.Crop,
+                painter            = painterResource(R.drawable.lklogo),
+                contentScale       = ContentScale.Crop,
                 contentDescription = "",
-                modifier = Modifier.size(150.dp).background(color = Color.White)
+                modifier           = Modifier
+                    .size(150.dp)
+                    .background(colors.background)      // ✅ camelCase
             )
 
             Spacer(Modifier.height(40.dp))
 
-            // Email (API uses email, not phone)
-
+            // Email
             OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("Email", color = Subtitle) },
-                leadingIcon = { Icon(Icons.Outlined.Email, null, tint = AccentBlueMid) },
+                value           = email,
+                onValueChange   = { email = it },
+                label           = { Text("Email", color = colors.subtitle) },
+                leadingIcon     = { Icon(Icons.Outlined.Email, null, tint = colors.accentBlueMid) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                singleLine = true,
-                enabled = !isLoading,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = PrimaryBlue,
-                    unfocusedBorderColor = Divider,
-                    cursorColor = PrimaryBlue,
-                    focusedLabelColor = PrimaryBlue,
-                    unfocusedLabelColor = Subtitle
+                singleLine      = true,
+                enabled         = !isLoading,
+                modifier        = Modifier.fillMaxWidth(),
+                shape           = RoundedCornerShape(10.dp),
+                colors          = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor   = colors.primaryBlue,
+                    unfocusedBorderColor = colors.divider,
+                    cursorColor          = colors.primaryBlue,
+                    focusedLabelColor    = colors.primaryBlue,
+                    unfocusedLabelColor  = colors.subtitle,
+                    focusedTextColor     = colors.onSurface,  // ✅ onSurface not subtitle
+                    unfocusedTextColor   = colors.onSurface
                 )
             )
 
             Spacer(Modifier.height(14.dp))
 
-
-
             // Password
             OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Password", color = Subtitle) },
-                leadingIcon = { Icon(Icons.Outlined.Lock, null, tint = AccentBlueMid) },
+                value           = password,
+                onValueChange   = { password = it },
+                label           = { Text("Password", color = colors.subtitle) },
+                leadingIcon     = { Icon(Icons.Outlined.Lock, null, tint = colors.accentBlueMid) },
                 visualTransformation = if (passVisible) VisualTransformation.None
                 else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                singleLine = true,
-                enabled = !isLoading,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = PrimaryBlue,
-                    unfocusedBorderColor = Divider,
-                    cursorColor = PrimaryBlue,
-                    focusedLabelColor = PrimaryBlue
+                singleLine      = true,
+                enabled         = !isLoading,
+                modifier        = Modifier.fillMaxWidth(),
+                shape           = RoundedCornerShape(10.dp),
+                colors          = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor   = colors.primaryBlue,
+                    unfocusedBorderColor = colors.divider,
+                    cursorColor          = colors.primaryBlue,
+                    focusedLabelColor    = colors.primaryBlue,
+                    unfocusedLabelColor  = colors.subtitle,
+                    focusedTextColor     = colors.onSurface,
+                    unfocusedTextColor   = colors.onSurface
                 )
             )
 
@@ -186,27 +179,25 @@ fun LoginScreen(
 
             // Login button
             Button(
-                onClick = { viewModel.login(email, password) },
-                enabled = !isLoading,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                onClick  = { viewModel.login(email, password) },
+                enabled  = !isLoading,
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape    = RoundedCornerShape(10.dp),
+                colors   = ButtonDefaults.buttonColors(containerColor = colors.primaryBlue)
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
-                        color = PrimaryBlue,
-                        modifier = Modifier.size(22.dp),
+                        color       = colors.white,
+                        modifier    = Modifier.size(22.dp),
                         strokeWidth = 2.dp
                     )
                 } else {
                     Text(
                         "Login",
                         style = TextStyle(
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White,
+                            fontSize      = 15.sp,
+                            fontWeight    = FontWeight.SemiBold,
+                            color         = colors.white,
                             letterSpacing = 0.5.sp
                         )
                     )
@@ -215,6 +206,138 @@ fun LoginScreen(
         }
     }
 }
+
+//@Composable
+//fun LoginScreen(
+//    onLoginSuccess: () -> Unit,
+//    viewModel: LoginViewModel = viewModel()
+//) {
+//    var email    by remember { mutableStateOf("") }
+//    var password by remember { mutableStateOf("") }
+//    var passVisible by remember { mutableStateOf(false) }
+//    val context = LocalContext.current
+//
+//    val state by viewModel.state.collectAsStateWithLifecycle()
+//
+//
+//
+//    // React to state changes
+//    LaunchedEffect(state) {
+//        when (state) {
+//            is LoginState.Success -> onLoginSuccess()
+//            is LoginState.Error   -> Toast.makeText(
+//                context, (state as LoginState.Error).message, Toast.LENGTH_LONG
+//            ).show()
+//            else -> Unit
+//        }
+//    }
+//
+//    val isLoading = state is LoginState.Loading
+//
+//    Box(
+//        modifier = Modifier
+//            .fillMaxSize()
+//            .background(Color.White)
+//    )
+//    {
+//        Column(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .align(Alignment.Center)
+//                .verticalScroll(rememberScrollState())
+//                .imePadding()
+//                .padding(horizontal = 32.dp),
+//            horizontalAlignment = Alignment.CenterHorizontally
+//        ) {
+//            // Logo
+//            Image(
+//                painter = painterResource(R.drawable.lklogo),
+//                contentScale = ContentScale.Crop,
+//                contentDescription = "",
+//                modifier = Modifier.size(150.dp).background(color = Color.White)
+//            )
+//
+//            Spacer(Modifier.height(40.dp))
+//
+//            // Email (API uses email, not phone)
+//
+//            OutlinedTextField(
+//                value = email,
+//                onValueChange = { email = it },
+//                label = { Text("Email", color = Subtitle) },
+//                leadingIcon = { Icon(Icons.Outlined.Email, null, tint = AccentBlueMid) },
+//                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+//                singleLine = true,
+//                enabled = !isLoading,
+//                modifier = Modifier.fillMaxWidth(),
+//                shape = RoundedCornerShape(10.dp),
+//                colors = OutlinedTextFieldDefaults.colors(
+//                    focusedBorderColor = PrimaryBlue,
+//                    unfocusedBorderColor = Divider,
+//                    cursorColor = PrimaryBlue,
+//                    focusedLabelColor = PrimaryBlue,
+//                    unfocusedLabelColor = Subtitle
+//                )
+//            )
+//
+//            Spacer(Modifier.height(14.dp))
+//
+//
+//
+//            // Password
+//            OutlinedTextField(
+//                value = password,
+//                onValueChange = { password = it },
+//                label = { Text("Password", color = Subtitle) },
+//                leadingIcon = { Icon(Icons.Outlined.Lock, null, tint = AccentBlueMid) },
+//                visualTransformation = if (passVisible) VisualTransformation.None
+//                else PasswordVisualTransformation(),
+//                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+//                singleLine = true,
+//                enabled = !isLoading,
+//                modifier = Modifier.fillMaxWidth(),
+//                shape = RoundedCornerShape(10.dp),
+//                colors = OutlinedTextFieldDefaults.colors(
+//                    focusedBorderColor = PrimaryBlue,
+//                    unfocusedBorderColor = Divider,
+//                    cursorColor = PrimaryBlue,
+//                    focusedLabelColor = PrimaryBlue
+//                )
+//            )
+//
+//            Spacer(Modifier.height(28.dp))
+//
+//            // Login button
+//            Button(
+//                onClick = { viewModel.login(email, password) },
+//                enabled = !isLoading,
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .height(50.dp),
+//                shape = RoundedCornerShape(10.dp),
+//                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+//            ) {
+//                if (isLoading) {
+//                    CircularProgressIndicator(
+//                        color = PrimaryBlue,
+//                        modifier = Modifier.size(22.dp),
+//                        strokeWidth = 2.dp
+//                    )
+//                } else {
+//                    Text(
+//                        "Login",
+//                        style = TextStyle(
+//                            fontSize = 15.sp,
+//                            fontWeight = FontWeight.SemiBold,
+//                            color = Color.White,
+//                            letterSpacing = 0.5.sp
+//                        )
+//                    )
+//                }
+//            }
+//        }
+//    }
+//}
 
 //@Composable
 //fun LoginScreen(onLoginSuccess: () -> Unit) {

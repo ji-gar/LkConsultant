@@ -22,13 +22,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.io.lkconsultants.R
+import com.io.lkconsultants.color.lkColors
 import com.room.roomy.retrofit.TokenProvider
 
 import kotlinx.coroutines.delay
 
 @Composable
 fun SplaceScreen(onBack:(token:String)->Unit) {
-
+  val colors= lkColors
     LaunchedEffect(Unit) {
         delay(2000L)
 
@@ -45,10 +46,10 @@ fun SplaceScreen(onBack:(token:String)->Unit) {
 
 
 
-    Box(modifier = Modifier.fillMaxSize().background(color = Color.White).windowInsetsPadding(
+    Box(modifier = Modifier.fillMaxSize().background(color =colors.background).windowInsetsPadding(
         WindowInsets.statusBars))
     {
-        Column(modifier = Modifier.fillMaxSize().background(color = Color.White),
+        Column(modifier = Modifier.fillMaxSize().background(color = colors.background),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally)
         {

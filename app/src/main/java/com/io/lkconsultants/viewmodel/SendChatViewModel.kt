@@ -57,6 +57,7 @@ class SendMessageViewModel : ViewModel() {
                     file           = filePart
                 )
 
+
                 Log.d("SendMessage", response.body().toString())
 
                 if (response.isSuccessful) {
@@ -67,6 +68,7 @@ class SendMessageViewModel : ViewModel() {
                         _state.value = SendMessageState.Error("Empty response")
                     }
                 } else {
+                    Log.d("fddd",response.message())
                     _state.value = SendMessageState.Error(
                         "Failed: ${response.code()} - ${response.message()}"
                     )

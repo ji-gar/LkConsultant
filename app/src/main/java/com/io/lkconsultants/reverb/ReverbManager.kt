@@ -67,6 +67,7 @@ object ReverbManager {
 
                 if (change.currentState == ConnectionState.CONNECTED) {
                     isConnected = true
+
                     Log.d(TAG, "✅ CONNECTED SUCCESS")
                     onConnected?.invoke()
                 }
@@ -93,6 +94,8 @@ object ReverbManager {
             Log.d(TAG, "Already subscribed: $channelName")
             return
         }
+
+
 
         val channel = pusher.subscribePrivate(channelName,
             object : PrivateChannelEventListener {

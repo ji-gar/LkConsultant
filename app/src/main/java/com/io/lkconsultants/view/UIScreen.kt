@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.io.lkconsultants.color.lkColors
 import com.io.lkconsultants.model.ConversationResponse
 
 /**
@@ -57,6 +58,7 @@ fun UserItemdd(
         animationSpec = tween(durationMillis = 120),
         label = "press_scale"
     )
+    var colors= lkColors
 
     // Tonal surface highlight on press (M3 style, no ripple jar)
     val bgColor by animateColorAsState(
@@ -74,7 +76,7 @@ fun UserItemdd(
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
-            .background(bgColor, RoundedCornerShape(16.dp))
+            .background(lkColors.background, RoundedCornerShape(16.dp))
             .clickable(
                 interactionSource = interactionSource,
                 indication = null          // handled by bgColor above

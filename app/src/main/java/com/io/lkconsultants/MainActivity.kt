@@ -6,19 +6,26 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.fragment.app.FragmentActivity
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.ui.NavDisplay
+import com.io.lkconsultants.color.DarkLKColors
+import com.io.lkconsultants.color.LightLKColors
+import com.io.lkconsultants.color.LocalLKColors
 import com.io.lkconsultants.navscreen.Screens
 import com.io.lkconsultants.ui.theme.LkConsultantsTheme
 import com.io.lkconsultants.view.ChatScreen
@@ -32,8 +39,12 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         setContent {
             LkConsultantsTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                  NavStack()
+
+
+                LKTheme {
+                    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                        NavStack()
+                    }
                 }
             }
         }
@@ -76,7 +87,9 @@ fun NavStack() {
                }
                is Screens.ChatScreen -> NavEntry(key){
                    var screen=it as Screens.ChatScreen
-                   ChatScreen(id = screen.id, name = screen.name){
+                   ChatScreen(id = screen.id,
+                       participt=screen.participantId,
+                       name = screen.name){
                        backStack.removeLastOrNull()
                    }
                }
@@ -85,7 +98,7 @@ fun NavStack() {
 
                    UsersScreen(){
 
-                       backStack.add(Screens.ChatScreen(it.id, name = it.participants.get(0).name))
+                       backStack.add(Screens.ChatScreen(it.id, participantId = it.participants.get(0).id ,name = it.participants.get(0).name))
 
                    }
                }
@@ -98,6 +111,19 @@ fun NavStack() {
         })
 
 
+}
+
+
+@Composable
+fun LKTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit
+) {
+    val colors = if (darkTheme) DarkLKColors else LightLKColors
+
+    CompositionLocalProvider(LocalLKColors provides colors) {
+        content()
+    }
 }
 
 

@@ -1,6 +1,7 @@
 package com.io.lkconsultants.view
 
 import android.os.Build
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -46,12 +47,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.io.lkconsultants.color.lkColors
 import com.io.lkconsultants.model.ConversationResponse
 import com.io.lkconsultants.ui.theme.Divider
 import com.io.lkconsultants.view.LKColors.AccentBlue
 import com.io.lkconsultants.view.LKColors.Divider
 import com.io.lkconsultants.viewmodel.UsersState
 import com.io.lkconsultants.viewmodel.UsersViewModel
+import com.room.roomy.retrofit.TokenProvider
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -65,6 +68,7 @@ fun UsersScreen(
     onClick: (user: ConversationResponse) -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var color= lkColors
 
     // ✅ Track refresh state
     val isRefreshing = state is UsersState.Loading
@@ -85,8 +89,17 @@ fun UsersScreen(
         }
 
         is UsersState.Success -> {
+           // val users = (state as UsersState.Success).users
             val users = (state as UsersState.Success).users
 
+            val currentUserId = TokenProvider.getUserId() // make sure this returns Int
+
+            val chatConversations = users.map { convo ->
+                convo.copy(
+                    participants = convo.participants.filter { it.id != currentUserId.toInt() }
+                )
+            }
+          Log.d("Usss",users.toString())
             // ✅ Wrap with PullToRefreshBox
             PullToRefreshBox(
                 isRefreshing = isRefreshing,
@@ -97,11 +110,11 @@ fun UsersScreen(
                 state = pullToRefreshState
             ) {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().background(color = lkColors.background),
                     contentPadding = PaddingValues(3.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(users) { user ->
+                    items(chatConversations) { user ->
                         UserItemdd(user = user) {
                             onClick.invoke(it)
                         }

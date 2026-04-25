@@ -42,6 +42,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.navigation3.runtime)
+    implementation("io.coil-kt.coil3:coil-compose:3.2.0")
+    implementation("io.coil-kt.coil3:coil-network-okhttp:3.2.0")
     implementation("com.pusher:pusher-java-client:2.4.4")
     implementation("com.squareup.retrofit2:retrofit:2.12.0")
     implementation("com.google.accompanist:accompanist-permissions:0.34.0")
