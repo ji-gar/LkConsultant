@@ -29,7 +29,7 @@ class ChatViewModel : ViewModel() {
 
     override fun onCleared() {
         super.onCleared()
-        ReverbManager.disconnect()
+      //  ReverbManager.c
     }
 
     fun getMessages(conversationId: Int) {
