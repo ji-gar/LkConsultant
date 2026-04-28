@@ -17,12 +17,22 @@ sealed class FilesState {
     data class Success(val data: FilesResponse) : FilesState()
     data class Error(val message: String)       : FilesState()
 }
+
+
 sealed class MessagesState {
-    object Idle    : MessagesState()
+    object Idle : MessagesState()
     object Loading : MessagesState()
-    data class Success(val data: Message) : MessagesState()
+    data class Success(val messages: List<MessageResponse>) : MessagesState()
     data class Error(val message: String) : MessagesState()
 }
+
+//sealed class MessagesState {
+//    object Idle    : MessagesState()
+//    object Loading : MessagesState()
+//    data class Success(val data: Message) : MessagesState()
+//    data class SingleMessage(val message: MessageResponse) : MessagesState()
+//    data class Error(val message: String) : MessagesState()
+//}
 
 class FilesViewModel : ViewModel() {
 

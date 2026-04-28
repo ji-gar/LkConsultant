@@ -178,7 +178,7 @@ fun ChatScreen(
 
 
 
-    val messages  = (state1 as? MessagesState.Success)?.data?.messages ?: emptyList()
+    val messages = (state1 as? MessagesState.Success)?.messages ?: emptyList()
     val isLoading = state1 is MessagesState.Loading
     val errorMsg  = (state1 as? MessagesState.Error)?.message
 

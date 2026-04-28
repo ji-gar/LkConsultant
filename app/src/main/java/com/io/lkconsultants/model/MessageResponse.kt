@@ -1,5 +1,11 @@
 package com.io.lkconsultants.model
 
+
+data class MessageWrapper(
+    val message: MessageResponse
+)
+
+
 data class Message(
     var messages : List<MessageResponse>
 )
