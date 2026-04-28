@@ -24,6 +24,8 @@ object ReverbManager {
 
     private const val KEY = "ENmFzvymq1fPqNPieGBV"
     private const val HOST = "ws-a192fe47-b57b-48ff-bfd7-4f574d381592-reverb.laravel.cloud"
+
+    //auth
     private const val AUTH_URL =
         "https://lkedc.free.laravel.cloud/api/broadcasting/auth"
 
