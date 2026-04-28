@@ -3,12 +3,14 @@ package com.io.lkconsultants.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+
 import com.io.lkconsultants.reverb.ReverbManager
 import com.room.roomy.retrofit.RetrofitInstance
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 class ChatViewModel : ViewModel() {
 
@@ -19,13 +21,54 @@ class ChatViewModel : ViewModel() {
     val messages: StateFlow<List<String>> = _messages
 
     fun connect(userToken: String, conversationId: String) {
-        ReverbManager.connect(userToken)
-
-        ReverbManager.subscribeConversation(conversationId) { json ->
-            // Update state instead of UI
-            _messages.value = _messages.value + json
+        val id = conversationId.toLong()   // make sure it's Long
+        ReverbManager.connect(conversationId.toInt()) {
+            //subscribe(id)
         }
     }
+//    private fun subscribe(conversationId: Long) {
+//
+//        ReverbManager.subscribeConversation(
+//            conversationId,
+//            object : ChatChannelListener() {
+//
+//                override fun onSubscriptionSucceeded(channelName: String) {
+//                    Log.d("VM", "✅ Subscribed: $channelName")
+//                }
+//
+//                override fun onAuthenticationFailure(message: String, e: Exception?) {
+//                    Log.e("VM", "❌ Auth failed: $message", e)
+//                }
+//
+//                override fun onMessageSent(json: String) {
+//                    Log.d("VM", "📩 RAW: $json")
+//
+//                    try {
+//                        val obj = JSONObject(json)
+//                        val msg = obj.getJSONObject("message")
+//
+//                        val text = msg.getString("text")
+//                        val sender = msg.getJSONObject("sender").getString("name")
+//
+//                        val formatted = "$sender: $text"
+//
+//                        _messages.value = _messages.value + formatted
+//
+//                    } catch (e: Exception) {
+//                        Log.e("VM", "Parse error", e)
+//                    }
+//                }
+//
+//                override fun onMessagesRead(json: String) {
+//                    Log.d("VM", "👁 Read: $json")
+//                }
+//
+//                override fun onUserTyping(json: String) {
+//                    Log.d("VM", "⌨️ Typing: $json")
+//                }
+//            }
+//        )
+//    }
 
     override fun onCleared() {
         super.onCleared()
