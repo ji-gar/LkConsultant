@@ -47,9 +47,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Share
@@ -67,6 +70,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 
 import androidx.compose.ui.Modifier
@@ -134,6 +138,8 @@ fun ChatScreen(
     id: Int,
     participt:Int,
     name: String,
+    initialSharedUris: List<Uri> = emptyList(),
+    initialSharedText: String? = null,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -143,42 +149,64 @@ fun ChatScreen(
     var downloadId by remember { mutableStateOf<Long?>(null) }
     var isSending  by remember { mutableStateOf(false) }
 
-    val state1           by fileView.state.collectAsStateWithLifecycle()
+    val state1  by fileView.state.collectAsStateWithLifecycle()
     val sendMessageState  = sendMessageViewModel.state.collectAsStateWithLifecycle().value
-    var selectedUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedUris by remember { mutableStateOf<List<Uri>>(initialSharedUris) }
+
+    LaunchedEffect(initialSharedText) {
+        if (initialSharedText != null) {
+            inputText = initialSharedText
+        }
+    }
 
     LaunchedEffect(id) {
         fileView.connect(TokenProvider.getToken(), id.toString())
     }
+    DisposableEffect(id) {
+        com.io.lkconsultants.reverb.ChatNotifier.setActive(id)
+        onDispose {
+            com.io.lkconsultants.reverb.ChatNotifier.clearActive()
+            // Don't unsubscribe the channel — UsersViewModel is still listening for unread bumps.
+            // ChatViewModel.onCleared() removes its own listener.
+        }
+    }
     LaunchedEffect(sendMessageState) {
         if (sendMessageState is SendMessageState.Success) {
-            inputText = ""
-            selectedUri=null
-
-            fileView.getMessages(id)
-            isSending = false
-            sendMessageViewModel.resetState()
+            if (selectedUris.isNotEmpty()) {
+                selectedUris = selectedUris.drop(1)
+                if (selectedUris.isEmpty()) {
+                    inputText = ""
+                    fileView.getMessages(id)
+                    isSending = false
+                    sendMessageViewModel.resetState()
+                } else {
+                    // Send next file in queue
+                    val nextUri = selectedUris.first()
+                    sendMessageViewModel.sendMessage(id, getFileName(context, nextUri), uriToFile(context, nextUri))
+                }
+            } else {
+                inputText = ""
+                fileView.getMessages(id)
+                isSending = false
+                sendMessageViewModel.resetState()
+            }
         }
     }
     LaunchedEffect(Unit) { fileView.getMessages(id) }
-   // var selectedUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
 
+    val presenceMap by com.io.lkconsultants.reverb.PresenceManager.statuses.collectAsStateWithLifecycle()
+    val participantStatus = presenceMap[participt]
+    LaunchedEffect(Unit) { com.io.lkconsultants.reverb.PresenceManager.refreshNow() }
 
-//    val launcher = rememberLauncherForActivityResult(
-//        contract = ActivityResultContracts.GetMultipleContents()
-//    ) { uris: List<Uri> ->
-//        selectedUris = uris
-//    }
-
-        val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uris: Uri? ->
-        selectedUri = uris
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        selectedUris = selectedUris + uris
     }
 
 
 
-    val messages = (state1 as? MessagesState.Success)?.messages ?: emptyList()
+    val messages  = (state1 as? MessagesState.Success)?.data?.messages ?: emptyList()
     val isLoading = state1 is MessagesState.Loading
     val errorMsg  = (state1 as? MessagesState.Error)?.message
 
@@ -195,37 +223,51 @@ fun ChatScreen(
                 TopAppBar(
                     title = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        Brush.radialGradient(
-                                            listOf(
-                                                colors.accentBlue,
-                                                colors.primaryBlue
-                                            )
+                            Box(contentAlignment = Alignment.BottomEnd) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(colors.primaryBlue.copy(alpha = 0.12f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = null,
+                                        tint = colors.primaryBlue,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                if (participantStatus?.isOnline == true) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(11.dp)
+                                            .clip(CircleShape)
+                                            .background(colors.surface)
+                                            .padding(1.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(9.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFF22C55E))
                                         )
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    name.take(2).uppercase(),
-                                    color = colors.white, fontSize = 14.sp, fontWeight = FontWeight.Bold
-                                )
+                                    }
+                                }
                             }
                             Spacer(Modifier.width(10.dp))
                             Column {
                                 Text(name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onSurface)
-                                Text(
-                                    when (state1) {
-                                        is MessagesState.Loading -> "Loading…"
-                                        is MessagesState.Success -> "Super Admin • ${messages.size} messages"
-                                        is MessagesState.Error   -> "Error loading"
-                                        else                     -> ""
-                                    },
-                                    fontSize = 11.sp, color = colors.subtitle
-                                )
+                                val subtitle = when {
+                                    participantStatus?.isOnline == true -> "Online"
+                                    participantStatus?.lastSeen != null -> "Last seen ${formatLastSeen(participantStatus.lastSeen)}"
+                                    state1 is MessagesState.Loading -> "Loading…"
+                                    state1 is MessagesState.Error -> "Error loading"
+                                    else -> ""
+                                }
+                                val subtitleColor = if (participantStatus?.isOnline == true) Color(0xFF22C55E) else colors.subtitle
+                                Text(subtitle, fontSize = 11.sp, color = subtitleColor)
                             }
                         }
                     },
@@ -234,14 +276,7 @@ fun ChatScreen(
                             Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = colors.primaryBlue)
                         }
                     },
-                    actions = {
-                        IconButton(onClick = {}) {
-                            Icon(Icons.Default.Search, contentDescription = "Search", tint = colors.primaryBlue)
-                        }
-                        IconButton(onClick = {}) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "More", tint = colors.primaryBlue)
-                        }
-                    },
+                    actions = {},
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.surface)
                 )
             }
@@ -250,20 +285,20 @@ fun ChatScreen(
         bottomBar = {
             Surface(shadowElevation = 8.dp, color = colors.surface) {
                 Column {
-
-
-                  if (selectedUri!=null)
-                  {
-                      FileItem(selectedUri!!){
-                          selectedUri=null
-                      }
-                  }
-//                    LazyRow() {
-//                        items(selectedUris) { uri ->
-//                            FileItem(uri)
-//                        }
-//                    }
-
+                    if (selectedUris.isNotEmpty()) {
+                        LazyRow(
+                            contentPadding = PaddingValues(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(selectedUris) { uri ->
+                                Box(modifier = Modifier.width(200.dp)) {
+                                    FileItem(uri) {
+                                        selectedUris = selectedUris.filter { it != uri }
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     Row(
                         modifier = Modifier
@@ -274,11 +309,10 @@ fun ChatScreen(
                     ) {
                         IconButton(onClick = {
                             launcher.launch("*/*")
-
                         }) {
                             Icon(
-                                Icons.Default.DateRange,
-                                contentDescription = "Attach",
+                                Icons.Default.AttachFile,
+                                contentDescription = "Attach file",
                                 tint = colors.primaryBlue
                             )
                         }
@@ -312,15 +346,12 @@ fun ChatScreen(
                                 .size(46.dp)
                                 .clip(CircleShape)
                                 .background(colors.primaryBlue)
-                                .clickable(enabled = !isSending && (inputText.isNotBlank() || selectedUri != null)) {
-                                   if (selectedUri!=null)
-                                   {
-                                       Log.d("dddd","cddd")
-                                       sendMessageViewModel.sendMessage(id, "${getFileName(context,selectedUri!!)}",uriToFile(context,selectedUri!!))
-                                   }
-                                    else {
-                                       Log.d("dddd","notfile")
-                                       sendMessageViewModel.sendMessage(id, inputText)
+                                .clickable(enabled = !isSending && (inputText.isNotBlank() || selectedUris.isNotEmpty())) {
+                                    if (selectedUris.isNotEmpty()) {
+                                        val firstUri = selectedUris.first()
+                                        sendMessageViewModel.sendMessage(id, getFileName(context, firstUri), uriToFile(context, firstUri))
+                                    } else {
+                                        sendMessageViewModel.sendMessage(id, inputText)
                                     }
                                 },
                             contentAlignment = Alignment.Center
@@ -424,7 +455,8 @@ fun ChatScreen(
                                 message   = ""
                             ),
                             isMine = isMine,
-                            time   = formatTime(message.created_at)
+                            time   = formatTime(message.created_at),
+                            isRead = message.read_by_all
                         ),
                         onDownload = {
                             downloadId = donwload(context, message.file_url.toString(), message.file_name)
@@ -445,7 +477,8 @@ fun ChatScreen(
                         ChatMessage.TextMsg(
                             text   = message.text.orEmpty(),
                             isMine = isMine,
-                            time   = formatTime(message.created_at)
+                            time   = formatTime(message.created_at),
+                            isRead = message.read_by_all
                         )
                     )
                 }
@@ -661,17 +694,77 @@ fun formatSize(bytes: Long): String = when {
     else               -> "$bytes B"
 }
 
+/**
+ * Parses Laravel/Carbon ISO-8601 timestamps in any of the shapes we see on the wire:
+ *  - 2026-04-28T12:34:56Z
+ *  - 2026-04-28T12:34:56.000000Z   (Carbon default — microseconds)
+ *  - 2026-04-28T12:34:56+00:00
+ *  - 2026-04-28 12:34:56            (plain SQL)
+ * Returns null if none match.
+ */
+private fun parseServerDate(iso: String): java.util.Date? {
+    if (iso.isBlank()) return null
+    // Normalize: trim microseconds to milliseconds (Java SDF only supports 3 digits)
+    val normalized = iso
+        .replace(Regex("(\\.\\d{3})\\d+"), "$1") // .000000 -> .000
+        .replace("Z", "+0000")
+        .replace(Regex("([+-]\\d{2}):(\\d{2})$"), "$1$2") // +00:00 -> +0000
+
+    val patterns = listOf(
+        "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+        "yyyy-MM-dd'T'HH:mm:ssZ",
+        "yyyy-MM-dd HH:mm:ss"
+    )
+    for (p in patterns) {
+        try {
+            val sdf = SimpleDateFormat(p, Locale.US)
+            if (p == "yyyy-MM-dd HH:mm:ss") sdf.timeZone = TimeZone.getTimeZone("UTC")
+            return sdf.parse(normalized) ?: continue
+        } catch (_: Exception) {
+        }
+    }
+    return null
+}
+
+/** Compact chat-bubble timestamp: today → "h:mm a", yesterday → "Yesterday h:mm a", older → "MMM d, h:mm a". */
 fun formatTime(isoDate: String): String {
-    return try {
-        val sdf    = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault())
-        sdf.timeZone = TimeZone.getTimeZone("UTC")
-        val date   = sdf.parse(isoDate)
-        val out    = SimpleDateFormat("hh:mm a", Locale.getDefault())
-        out.format(date!!)
-    } catch (e: Exception) { isoDate }
+    val date = parseServerDate(isoDate) ?: return isoDate
+
+    val tz = TimeZone.getDefault()
+    val now = java.util.Calendar.getInstance(tz)
+    val msgCal = java.util.Calendar.getInstance(tz).apply { time = date }
+
+    val sameDay = now.get(java.util.Calendar.YEAR) == msgCal.get(java.util.Calendar.YEAR) &&
+        now.get(java.util.Calendar.DAY_OF_YEAR) == msgCal.get(java.util.Calendar.DAY_OF_YEAR)
+
+    val yesterday = (java.util.Calendar.getInstance(tz).apply {
+        add(java.util.Calendar.DAY_OF_YEAR, -1)
+    })
+    val isYesterday = yesterday.get(java.util.Calendar.YEAR) == msgCal.get(java.util.Calendar.YEAR) &&
+        yesterday.get(java.util.Calendar.DAY_OF_YEAR) == msgCal.get(java.util.Calendar.DAY_OF_YEAR)
+
+    val timeFmt = SimpleDateFormat("h:mm a", Locale.getDefault()).apply { timeZone = tz }
+    return when {
+        sameDay -> timeFmt.format(date)
+        isYesterday -> "Yesterday ${timeFmt.format(date)}"
+        else -> SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).apply { timeZone = tz }.format(date)
+    }
 }
 
 
+
+/** "5m ago", "2h ago", or fall back to formatTime() for older. */
+fun formatLastSeen(iso: String): String {
+    val date = parseServerDate(iso) ?: return ""
+    val diffMs = System.currentTimeMillis() - date.time
+    val mins = diffMs / 60_000L
+    return when {
+        mins < 1    -> "just now"
+        mins < 60   -> "${mins}m ago"
+        mins < 1440 -> "${mins / 60}h ago"
+        else        -> formatTime(iso)
+    }
+}
 
 fun donwload(context: Context, url: String, fileName: String) : Long
 {
@@ -753,12 +846,20 @@ fun TextBubble(message: ChatMessage.TextMsg) {
                 )
             }
 
-            Text(
-                message.time,
-                fontSize = 10.sp,
-                color = lkcolor.subtitle,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)
-            )
+            ) {
+                Text(
+                    message.time,
+                    fontSize = 10.sp,
+                    color = lkcolor.subtitle
+                )
+                if (message.isMine) {
+                    Spacer(Modifier.width(4.dp))
+                    ReadTicks(message.isRead)
+                }
+            }
         }
     }
 }
@@ -859,8 +960,16 @@ fun FileBubble(message: ChatMessage.FileMsg, onDownload:()->Unit,onShare: () -> 
                     }
                 }
             }
-            Text(message.time, fontSize = 10.sp, color = lkcolor.subtitle,
-                modifier = Modifier.padding(top = 2.dp, start = 4.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 2.dp, start = 4.dp)
+            ) {
+                Text(message.time, fontSize = 10.sp, color = lkcolor.subtitle)
+                if (message.isMine) {
+                    Spacer(Modifier.width(4.dp))
+                    ReadTicks(message.isRead)
+                }
+            }
         }
     }
 }
@@ -877,8 +986,19 @@ fun FileBubble(message: ChatMessage.FileMsg, onDownload:()->Unit,onShare: () -> 
 )*/
 
 sealed class ChatMessage {
-    data class TextMsg(val text: String, val isMine: Boolean, val time: String) : ChatMessage()
-    data class FileMsg(val file: SharedFile, val isMine: Boolean, val time: String) : ChatMessage()
+    data class TextMsg(val text: String, val isMine: Boolean, val time: String, val isRead: Boolean = false) : ChatMessage()
+    data class FileMsg(val file: SharedFile, val isMine: Boolean, val time: String, val isRead: Boolean = false) : ChatMessage()
+}
+
+@Composable
+fun ReadTicks(isRead: Boolean) {
+    val tint = if (isRead) Color(0xFF1E88E5) else lkColors.subtitle
+    Icon(
+        imageVector = if (isRead) Icons.Default.DoneAll else Icons.Default.Done,
+        contentDescription = if (isRead) "Read" else "Sent",
+        tint = tint,
+        modifier = Modifier.size(14.dp)
+    )
 }
 
 fun fileIconBg(type: String): Color = when (type) {

@@ -19,6 +19,20 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    flavorDimensions += "appType"
+    productFlavors {
+        create("chatApp") {
+            dimension = "appType"
+            applicationId = "com.io.lkconsultants.chat"
+            versionNameSuffix = "-chat"
+        }
+        create("employeeApp") {
+            dimension = "appType"
+            applicationId = "com.io.lkconsultants.employee"
+            versionNameSuffix = "-employee"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -31,13 +45,16 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.navigation3.ui)
@@ -58,6 +75,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation("androidx.compose.material:material-icons-extended")
     implementation(libs.androidx.compose.animation.core.lint)
     implementation(libs.androidx.browser)
     testImplementation(libs.junit)

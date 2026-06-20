@@ -15,10 +15,20 @@ sealed interface Screens : NavKey {
     object LoginScreen: Screens
 
     @Serializable
-    data class ChatScreen(var id: Int,var participantId:Int,var name:String) : Screens
+    data class ChatScreen(
+        var id: Int,
+        var participantId: Int,
+        var name: String,
+        var sharedUris: List<String>? = null,
+        var sharedText: String? = null
+    ) : Screens
 
     @Serializable
     object UserScreen : Screens
 
+    @Serializable
+    object EmployeeHomeScreen : Screens
 
+    @Serializable
+    object NewChatScreen : Screens
 }

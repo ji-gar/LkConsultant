@@ -9,6 +9,7 @@ import com.room.roomy.retrofit.RetrofitInstance
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 sealed class FilesState {
@@ -17,22 +18,12 @@ sealed class FilesState {
     data class Success(val data: FilesResponse) : FilesState()
     data class Error(val message: String)       : FilesState()
 }
-
-
 sealed class MessagesState {
-    object Idle : MessagesState()
+    object Idle    : MessagesState()
     object Loading : MessagesState()
-    data class Success(val messages: List<MessageResponse>) : MessagesState()
+    data class Success(val data: Message) : MessagesState()
     data class Error(val message: String) : MessagesState()
 }
-
-//sealed class MessagesState {
-//    object Idle    : MessagesState()
-//    object Loading : MessagesState()
-//    data class Success(val data: Message) : MessagesState()
-//    data class SingleMessage(val message: MessageResponse) : MessagesState()
-//    data class Error(val message: String) : MessagesState()
-//}
 
 class FilesViewModel : ViewModel() {
 
@@ -48,6 +39,7 @@ class FilesViewModel : ViewModel() {
         viewModelScope.launch {
             _state.value = FilesState.Loading
             try {
+
                 val response = RetrofitInstance.retrofits.getFiles("all", userId, page, perPage)
                 if (response.isSuccessful) {
                     _state.value = FilesState.Success(response.body()!!)

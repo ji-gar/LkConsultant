@@ -34,3 +34,5 @@ data class UserStatus(
     @SerializedName("is_online") val isOnline: Boolean,
     @SerializedName("last_seen") val lastSeen: String?
 )
+
+data class UserStatusListResponse(val users: List<UserStatus>)

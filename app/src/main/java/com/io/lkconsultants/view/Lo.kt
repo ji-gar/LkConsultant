@@ -117,12 +117,10 @@ fun LoginScreen(
         ) {
 
             Image(
-                painter            = painterResource(R.drawable.lklogo),
-                contentScale       = ContentScale.Crop,
-                contentDescription = "",
-                modifier           = Modifier
-                    .size(150.dp)
-                    .background(colors.background)      // ✅ camelCase
+                painter            = painterResource(R.drawable.lk_logo),
+                contentScale       = ContentScale.Fit,
+                contentDescription = "LK Design Consultant",
+                modifier           = Modifier.size(150.dp)
             )
 
             Spacer(Modifier.height(40.dp))

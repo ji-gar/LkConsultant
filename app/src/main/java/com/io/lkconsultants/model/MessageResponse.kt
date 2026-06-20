@@ -1,11 +1,5 @@
 package com.io.lkconsultants.model
 
-
-data class MessageWrapper(
-    val message: MessageResponse
-)
-
-
 data class Message(
     var messages : List<MessageResponse>
 )
@@ -18,8 +12,12 @@ data class MessageResponse(
     val file_name: String?,
     val file_url: String?,
     val created_at: String,
-    val sender: Sender
+    val sender: Sender,
+    val read_by_all: Boolean = false
 )
+
+data class MarkReadRequest(val conversationId: Int)
+data class MarkReadResponse(val read_at: String)
 
 data class Sender(
     val id: Int,

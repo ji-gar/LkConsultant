@@ -5,8 +5,9 @@ data class ConversationResponse(
     val is_group: Boolean,
     val group_id: Int?,
     val group_name: String?,
-    val last_message: String,
+    val last_message: String?,
     val updated_at: String,
+    val unread_count: Int = 0,
     val participants: List<Participant>
 )
 

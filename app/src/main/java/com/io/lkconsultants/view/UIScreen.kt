@@ -12,6 +12,11 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -47,6 +52,8 @@ import com.io.lkconsultants.model.ConversationResponse
 fun UserItemdd(
     user: ConversationResponse,
     unreadCount: Int = 0,
+    isOnline: Boolean = false,
+    isSelected: Boolean = false,
     onClick: (ConversationResponse) -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -60,12 +67,13 @@ fun UserItemdd(
     )
     var colors= lkColors
 
-    // Tonal surface highlight on press (M3 style, no ripple jar)
+    // Tonal surface highlight on press or if selected
     val bgColor by animateColorAsState(
-        targetValue = if (isPressed)
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-        else
-            Color.Transparent,
+        targetValue = when {
+            isSelected -> lkColors.primaryBlue.copy(alpha = 0.15f)
+            isPressed -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+            else -> Color.Transparent
+        },
         animationSpec = tween(120),
         label = "press_bg"
     )
@@ -76,7 +84,7 @@ fun UserItemdd(
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
-            .background(lkColors.background, RoundedCornerShape(16.dp))
+            .background(bgColor, RoundedCornerShape(16.dp))
             .clickable(
                 interactionSource = interactionSource,
                 indication = null          // handled by bgColor above
@@ -90,43 +98,55 @@ fun UserItemdd(
         ) {
 
             // ── Avatar ────────────────────────────────────────────────────────
-            if (!user.group_name.isNullOrEmpty())
-            {
-                val initials = buildInitials(user.group_name)
-                val avatarGradient = rememberAvatarGradient(user.group_name)
-
-                Box(
-                    modifier = Modifier
-                        .size(52.dp)
-                        .clip(CircleShape)
-                        .background(avatarGradient),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = initials,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
-                }
+            val displayName = when {
+                !user.group_name.isNullOrEmpty() -> user.group_name
+                else -> user.participants.firstOrNull()?.name ?: "Unknown"
             }
-            else {
-                val initials = buildInitials(user.participants.get(0).name)
-                val avatarGradient = rememberAvatarGradient(user.participants.get(0).name)
 
+            val isGroup = !user.group_name.isNullOrEmpty()
+            Box(contentAlignment = Alignment.BottomEnd) {
                 Box(
                     modifier = Modifier
                         .size(52.dp)
                         .clip(CircleShape)
-                        .background(avatarGradient),
+                        .background(
+                            if (isSelected) lkColors.primaryBlue 
+                            else lkColors.primaryBlue.copy(alpha = 0.12f)
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = initials,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
+                    if (isSelected) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = if (isGroup) Icons.Default.Group else Icons.Default.Person,
+                            contentDescription = null,
+                            tint = lkColors.primaryBlue,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+                }
+
+                if (isOnline && user.group_name.isNullOrEmpty() && !isSelected) {
+                    Box(
+                        modifier = Modifier
+                            .size(14.dp)
+                            .clip(CircleShape)
+                            .background(lkColors.background),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(11.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF22C55E))
+                        )
+                    }
                 }
             }
 
@@ -144,7 +164,7 @@ fun UserItemdd(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = user.group_name ?: "${user.participants.get(0).name}",
+                        text = displayName,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = if (hasUnread) FontWeight.Bold else FontWeight.Medium,
                             letterSpacing = (-0.2).sp
