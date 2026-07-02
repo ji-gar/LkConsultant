@@ -25,11 +25,13 @@ android {
             dimension = "appType"
             applicationId = "com.io.lkconsultants.chat"
             versionNameSuffix = "-chat"
+            manifestPlaceholders["appLabel"] = "LKDC Chat"
         }
         create("employeeApp") {
             dimension = "appType"
             applicationId = "com.io.lkconsultants.employee"
             versionNameSuffix = "-employee"
+            manifestPlaceholders["appLabel"] = "LKDC EMS"
         }
     }
 

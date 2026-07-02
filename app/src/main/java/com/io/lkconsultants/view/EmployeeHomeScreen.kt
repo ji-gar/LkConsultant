@@ -1,28 +1,35 @@
 package com.io.lkconsultants.view
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Assignment
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.outlined.Assignment
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Assignment
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.io.lkconsultants.color.lkColors
-import com.room.roomy.retrofit.LeaveRequest
-import com.room.roomy.retrofit.Task
+import com.room.roomy.retrofit.*
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
@@ -37,35 +44,65 @@ fun EmployeeHomeScreen(onLogout: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Employee Portal", fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton(onClick = onLogout) {
-                        Icon(Icons.Default.ExitToApp, contentDescription = "Logout", tint = colors.primaryBlue)
+            CenterAlignedTopAppBar(
+                title = { 
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("LKEDC EMS", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                        Surface(
+                            color = colors.primaryBlue.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                if (selectedTab == 0) "TASK MANAGEMENT" else "LEAVE PORTAL",
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
+                                color = colors.primaryBlue,
+                                letterSpacing = 1.sp
+                            )
+                        }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.surface)
+                actions = {
+                    IconButton(onClick = onLogout) {
+                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Logout", tint = colors.brandRed)
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = colors.surface)
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = colors.surface) {
+            NavigationBar(
+                containerColor = colors.surface,
+                tonalElevation = 8.dp
+            ) {
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.Assignment, null) },
-                    label = { Text("Tasks") }
+                    icon = { Icon(if (selectedTab == 0) Icons.AutoMirrored.Filled.Assignment else Icons.AutoMirrored.Outlined.Assignment, null) },
+                    label = { Text("Tasks") },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = colors.primaryBlue,
+                        selectedTextColor = colors.primaryBlue,
+                        indicatorColor = colors.primaryBlue.copy(alpha = 0.1f)
+                    )
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
                     icon = { Icon(Icons.Default.DateRange, null) },
-                    label = { Text("Leave") }
+                    label = { Text("Leaves") },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = colors.primaryBlue,
+                        selectedTextColor = colors.primaryBlue,
+                        indicatorColor = colors.primaryBlue.copy(alpha = 0.1f)
+                    )
                 )
             }
         },
         containerColor = colors.background
     ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
+        Box(Modifier.padding(padding).fillMaxSize()) {
             if (selectedTab == 0) {
                 TaskListScreen()
             } else {
@@ -77,50 +114,283 @@ fun EmployeeHomeScreen(onLogout: () -> Unit) {
 
 @Composable
 fun TaskListScreen() {
-    //
-    var tasks by remember { mutableStateOf<List<Task>>(emptyList()) }
+    var taskResponse by remember { mutableStateOf<TaskListResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedStatus by remember { mutableStateOf<String?>(null) }
+    
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
-        try {
-            val response = com.room.roomy.retrofit.RetrofitInstance.retrofits.getTasks()
-            if (response.isSuccessful) {
-                tasks = response.body()?.tasks ?: emptyList()
-            } else {
-                errorMessage = "Failed to load tasks: ${response.message()}"
+    fun loadTasks() {
+        isLoading = true
+        scope.launch {
+            try {
+                val response = RetrofitInstance.retrofits.listTasks(
+                    search = searchQuery.takeIf { it.isNotBlank() },
+                    status = selectedStatus
+                )
+                if (response.isSuccessful) {
+                    taskResponse = response.body()
+                } else {
+                    errorMessage = "Session Expired or Server Error"
+                }
+            } catch (e: Exception) {
+                errorMessage = "Network Error"
+            } finally {
+                isLoading = false
             }
-        } catch (e: Exception) {
-            errorMessage = "Error: ${e.localizedMessage}"
-        } finally {
-            isLoading = false
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    LaunchedEffect(searchQuery, selectedStatus) {
+        loadTasks()
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        SearchBar(
+            query = searchQuery,
+            onQueryChange = { searchQuery = it },
+            placeholder = "Search tasks..."
+        )
+
+        FilterRow(
+            options = listOf("All", "Pending", "In Progress", "Completed"),
+            selected = when (selectedStatus) {
+                "pending" -> "Pending"
+                "in_progress" -> "In Progress"
+                "completed" -> "Completed"
+                else -> "All"
+            },
+            onSelect = {
+                selectedStatus = when (it) {
+                    "Pending" -> "pending"
+                    "In Progress" -> "in_progress"
+                    "Completed" -> "completed"
+                    else -> null
+                }
+            }
+        )
+
         if (isLoading) {
-            CircularProgressIndicator(Modifier.align(Alignment.Center), color = lkColors.primaryBlue)
-        } else if (errorMessage != null) {
-            Text(
-                text = errorMessage!!,
-                color = Color.Red,
-                modifier = Modifier.align(Alignment.Center).padding(16.dp)
-            )
-        } else if (tasks.isEmpty()) {
-            Text(
-                text = "No tasks assigned yet.",
-                modifier = Modifier.align(Alignment.Center),
-                color = lkColors.subtitle
-            )
+            LinearProgressIndicator(Modifier.fillMaxWidth(), color = lkColors.primaryBlue)
+        }
+
+        if (errorMessage != null) {
+            ErrorPlaceholder(errorMessage!!) { 
+                errorMessage = null
+                loadTasks()
+            }
         } else {
             LazyColumn(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(tasks) { task ->
-                    TaskItem(task)
+                taskResponse?.counts?.let { counts ->
+                    item {
+                        TaskSummaryRow(counts)
+                    }
+                }
+
+                val tasks = taskResponse?.tasks ?: emptyList()
+                if (tasks.isEmpty() && !isLoading) {
+                    item {
+                        EmptyPlaceholder("No tasks found.")
+                    }
+                } else {
+                    items(tasks) { task ->
+                        TaskItem(task)
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun SearchBar(query: String, onQueryChange: (String) -> Unit, placeholder: String) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        placeholder = { Text(placeholder, fontSize = 14.sp) },
+        leadingIcon = { Icon(Icons.Default.Search, null, tint = lkColors.subtitle) },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(Icons.Default.Close, null, tint = lkColors.subtitle)
+                }
+            }
+        },
+        shape = RoundedCornerShape(12.dp),
+        singleLine = true,
+        colors = OutlinedTextFieldDefaults.colors(
+            unfocusedContainerColor = lkColors.surface,
+            focusedContainerColor = lkColors.surface,
+            unfocusedBorderColor = Color.Transparent,
+            focusedBorderColor = lkColors.primaryBlue
+        )
+    )
+}
+
+@Composable
+fun FilterRow(options: List<String>, selected: String, onSelect: (String) -> Unit) {
+    LazyRow(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(bottom = 8.dp)
+    ) {
+        items(options) { option ->
+            val isSelected = option == selected
+            FilterChip(
+                selected = isSelected,
+                onClick = { onSelect(option) },
+                label = { Text(option, fontSize = 12.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = lkColors.primaryBlue,
+                    selectedLabelColor = Color.White
+                ),
+                border = if (!isSelected) BorderStroke(1.dp, lkColors.divider) else null
+            )
+        }
+    }
+}
+
+@Composable
+fun TaskSummaryRow(counts: TaskCounts) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        SummaryCard(Modifier.weight(1f), "Today", counts.today.toString(), lkColors.primaryBlue, Icons.Default.Today)
+        SummaryCard(Modifier.weight(1f), "Live", (counts.pending + counts.in_progress).toString(), Color(0xFFFF9800), Icons.Default.Bolt)
+        SummaryCard(Modifier.weight(1f), "Done", counts.completed.toString(), Color(0xFF4CAF50), Icons.Default.CheckCircle)
+    }
+}
+
+@Composable
+fun SummaryCard(modifier: Modifier, label: String, value: String, color: Color, icon: ImageVector) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = lkColors.surface),
+        elevation = CardDefaults.cardElevation(2.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                Modifier.size(32.dp).clip(CircleShape).background(color.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = color, modifier = Modifier.size(16.dp))
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = lkColors.onSurface)
+            Text(label, fontSize = 10.sp, color = lkColors.subtitle, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+fun TaskItem(task: Task) {
+    val colors = lkColors
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = colors.surface),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, colors.divider.copy(alpha = 0.3f))
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Box(
+                    Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(colors.background),
+                    contentAlignment = Alignment.Center
+                ) {
+                    StatusIcon(task.status)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            task.title, 
+                            fontWeight = FontWeight.ExtraBold, 
+                            fontSize = 15.sp, 
+                            color = colors.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        PriorityBadge(task.priority)
+                    }
+                    task.description?.let { 
+                        Text(it, fontSize = 12.sp, color = colors.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+            
+            val total = task.checklist?.size ?: 0
+            val completed = task.checklist?.count { it.done } ?: 0
+            if (total > 0) {
+                TaskProgressIndicator(completed, total)
+                Spacer(Modifier.height(16.dp))
+            }
+
+            Row(
+                Modifier.fillMaxWidth().background(colors.background, RoundedCornerShape(12.dp)).padding(8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                UserMiniProfile("Assigner", task.assigner)
+                DeadlineBadge(task.due_date)
+            }
+        }
+    }
+}
+
+@Composable
+fun TaskProgressIndicator(completed: Int, total: Int) {
+    val progress = completed.toFloat() / total
+    Column {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Progress", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = lkColors.subtitle)
+            Text("${(progress * 100).toInt()}%", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = lkColors.primaryBlue)
+        }
+        Spacer(Modifier.height(6.dp))
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+            color = lkColors.primaryBlue,
+            trackColor = lkColors.divider
+        )
+    }
+}
+
+@Composable
+fun UserMiniProfile(label: String, user: UserBrief?) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(24.dp).clip(CircleShape).background(lkColors.primaryBlue.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
+            Text(user?.name?.take(1)?.uppercase() ?: "S", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = lkColors.primaryBlue)
+        }
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text(label, fontSize = 8.sp, color = lkColors.subtitle, fontWeight = FontWeight.Bold)
+            Text(user?.name ?: "System", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = lkColors.onSurface)
+        }
+    }
+}
+
+@Composable
+fun DeadlineBadge(date: String) {
+    Surface(
+        color = lkColors.brandRed.copy(alpha = 0.1f),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Timer, null, modifier = Modifier.size(10.dp), tint = lkColors.brandRed)
+            Spacer(Modifier.width(4.dp))
+            Text(date.substringBefore("T"), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = lkColors.brandRed)
         }
     }
 }
@@ -146,37 +416,30 @@ fun LeaveRequestScreen() {
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val leaveTypes = listOf("annual", "casual", "sick", "unpaid")
-    val dayTypes = listOf("full", "half")
-    val sessions = listOf("first_half", "second_half")
-
-    // Leave list state
-    var leaveList by remember { mutableStateOf<List<LeaveRequest>>(emptyList()) }
+    var leaveResponse by remember { mutableStateOf<LeaveListResponse?>(null) }
     var isLoadingList by remember { mutableStateOf(true) }
 
     val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
-    LaunchedEffect(Unit) {
-        fetchLeaves { leaveList = it; isLoadingList = false }
+    fun loadLeaves() {
+        isLoadingList = true
+        scope.launch {
+            try {
+                val response = RetrofitInstance.retrofits.listLeaves()
+                if (response.isSuccessful) leaveResponse = response.body()
+            } catch (e: Exception) { e.printStackTrace() }
+            finally { isLoadingList = false }
+        }
     }
 
+    LaunchedEffect(Unit) { loadLeaves() }
+
     if (showStartPicker) {
-        MyDatePickerDialog(
-            onDateSelected = { 
-                startDate = it
-                if (endDate.isBefore(it)) endDate = it
-                showStartPicker = false 
-            },
-            onDismiss = { showStartPicker = false }
-        )
+        MyDatePickerDialog(startDate, { startDate = it; if (endDate.isBefore(it)) endDate = it; showStartPicker = false }, { showStartPicker = false })
     }
 
     if (showEndPicker) {
-        MyDatePickerDialog(
-            initialDate = endDate,
-            onDateSelected = { endDate = it; showEndPicker = false },
-            onDismiss = { showEndPicker = false }
-        )
+        MyDatePickerDialog(endDate, { endDate = it; showEndPicker = false }, { showEndPicker = false })
     }
 
     Scaffold(
@@ -191,319 +454,140 @@ fun LeaveRequestScreen() {
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Request Leave", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            SectionHeader("Apply for Leave")
 
-            // Form Fields
-            Card(colors = CardDefaults.cardColors(containerColor = lkColors.surface)) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // Leave Type Dropdown
-                    ExposedDropdownMenuBox(
-                        expanded = typeExpanded,
-                        onExpandedChange = { typeExpanded = !typeExpanded }
-                    ) {
-                        OutlinedTextField(
-                            value = leaveType.replaceFirstChar { it.uppercase() },
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Leave Type") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
-                            modifier = Modifier.menuAnchor().fillMaxWidth()
-                        )
-                        ExposedDropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
-                            leaveTypes.forEach { type ->
-                                DropdownMenuItem(
-                                    text = { Text(type.replaceFirstChar { it.uppercase() }) },
-                                    onClick = { leaveType = type; typeExpanded = false }
-                                )
+            Card(
+                colors = CardDefaults.cardColors(containerColor = lkColors.surface),
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, lkColors.divider.copy(alpha = 0.3f))
+            ) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // Type & Day Type Row
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DropdownSelector(Modifier.weight(1f), "Type", leaveType.replaceFirstChar { it.uppercase() }, typeExpanded, { typeExpanded = it }) {
+                            listOf("annual", "casual", "sick", "unpaid").forEach { t ->
+                                DropdownMenuItem(text = { Text(t.replaceFirstChar { it.uppercase() }) }, onClick = { leaveType = t; typeExpanded = false })
                             }
                         }
-                    }
-
-                    // Day Type Dropdown
-                    ExposedDropdownMenuBox(
-                        expanded = dayTypeExpanded,
-                        onExpandedChange = { dayTypeExpanded = !dayTypeExpanded }
-                    ) {
-                        OutlinedTextField(
-                            value = dayType.replaceFirstChar { it.uppercase() },
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Day Type") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dayTypeExpanded) },
-                            modifier = Modifier.menuAnchor().fillMaxWidth()
-                        )
-                        ExposedDropdownMenu(expanded = dayTypeExpanded, onDismissRequest = { dayTypeExpanded = false }) {
-                            dayTypes.forEach { type ->
-                                DropdownMenuItem(
-                                    text = { Text(type.replaceFirstChar { it.uppercase() }) },
-                                    onClick = { dayType = type; dayTypeExpanded = false }
-                                )
+                        DropdownSelector(Modifier.weight(1f), "Day", dayType.replaceFirstChar { it.uppercase() }, dayTypeExpanded, { dayTypeExpanded = it }) {
+                            listOf("full", "half").forEach { t ->
+                                DropdownMenuItem(text = { Text(t.replaceFirstChar { it.uppercase() }) }, onClick = { dayType = t; dayTypeExpanded = false })
                             }
                         }
                     }
 
                     if (dayType == "half") {
-                        ExposedDropdownMenuBox(
-                            expanded = sessionExpanded,
-                            onExpandedChange = { sessionExpanded = !sessionExpanded }
-                        ) {
-                            OutlinedTextField(
-                                value = session.replace("_", " ").replaceFirstChar { it.uppercase() },
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("Session") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sessionExpanded) },
-                                modifier = Modifier.menuAnchor().fillMaxWidth()
-                            )
-                            ExposedDropdownMenu(expanded = sessionExpanded, onDismissRequest = { sessionExpanded = false }) {
-                                sessions.forEach { s ->
-                                    DropdownMenuItem(
-                                        text = { Text(s.replace("_", " ").replaceFirstChar { it.uppercase() }) },
-                                        onClick = { session = s; sessionExpanded = false }
-                                    )
-                                }
+                        DropdownSelector(Modifier.fillMaxWidth(), "Session", session.replace("_", " ").replaceFirstChar { it.uppercase() }, sessionExpanded, { sessionExpanded = it }) {
+                            listOf("first_half", "second_half").forEach { s ->
+                                DropdownMenuItem(text = { Text(s.replace("_", " ").replaceFirstChar { it.uppercase() }) }, onClick = { session = s; sessionExpanded = false })
                             }
                         }
                     }
 
-                    // Date Pickers
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = startDate.format(dateFormatter),
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Start Date") },
-                            modifier = Modifier.weight(1f),
-                            trailingIcon = { IconButton(onClick = { showStartPicker = true }) { Icon(Icons.Default.DateRange, null) } }
-                        )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DatePickerField(Modifier.weight(1f), "From", startDate.format(dateFormatter)) { showStartPicker = true }
                         if (dayType == "full") {
-                            OutlinedTextField(
-                                value = endDate.format(dateFormatter),
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("End Date") },
-                                modifier = Modifier.weight(1f),
-                                trailingIcon = { IconButton(onClick = { showEndPicker = true }) { Icon(Icons.Default.DateRange, null) } }
-                            )
+                            DatePickerField(Modifier.weight(1f), "To", endDate.format(dateFormatter)) { showEndPicker = true }
                         }
                     }
 
                     OutlinedTextField(
-                        value = reason,
-                        onValueChange = { reason = it },
-                        label = { Text("Reason") },
-                        modifier = Modifier.fillMaxWidth().height(100.dp)
+                        value = reason, onValueChange = { reason = it },
+                        label = { Text("Reason", fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth().height(90.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = lkColors.divider)
                     )
 
                     Button(
                         onClick = {
-                            val request = com.room.roomy.retrofit.ApplyLeaveRequest(
-                                type = leaveType,
-                                day_type = dayType,
-                                from_date = startDate.format(dateFormatter),
-                                to_date = if (dayType == "full") endDate.format(dateFormatter) else null,
-                                session = if (dayType == "half") session else null,
-                                reason = reason
-                            )
+                            val request = ApplyLeaveRequest(leaveType, dayType, startDate.format(dateFormatter), if (dayType == "full") endDate.format(dateFormatter) else null, if (dayType == "half") session else null, reason)
                             scope.launch {
                                 try {
-                                    val response = com.room.roomy.retrofit.RetrofitInstance.retrofits.applyLeave(request)
-                                    if (response.isSuccessful) {
-                                        snackbarHostState.showSnackbar("Request submitted!")
-                                        reason = ""
-                                        fetchLeaves { leaveList = it }
-                                    } else {
-                                        snackbarHostState.showSnackbar("Failed: ${response.message()}")
-                                    }
-                                } catch (e: Exception) {
-                                    snackbarHostState.showSnackbar("Error: ${e.localizedMessage}")
-                                }
+                                    val res = RetrofitInstance.retrofits.applyLeave(request)
+                                    if (res.isSuccessful) { snackbarHostState.showSnackbar("Success!"); reason = ""; loadLeaves() }
+                                } catch (e: Exception) { snackbarHostState.showSnackbar("Error") }
                             }
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = reason.isNotBlank(),
-                        colors = ButtonDefaults.buttonColors(containerColor = lkColors.primaryBlue)
-                    ) {
-                        Text("Submit Request", color = Color.White)
-                    }
+                        modifier = Modifier.fillMaxWidth().height(54.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = lkColors.primaryBlue),
+                        enabled = reason.isNotBlank()
+                    ) { Text("Submit Application", fontWeight = FontWeight.ExtraBold) }
                 }
             }
 
-            // Leave List Section
-            Spacer(Modifier.height(8.dp))
-            Text("Your Leave Requests", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            leaveResponse?.counts?.let { LeaveSummaryGrid(it) }
+
+            SectionHeader("History")
             
             if (isLoadingList) {
                 CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally), color = lkColors.primaryBlue)
-            } else if (leaveList.isEmpty()) {
-                Text("No previous requests found.", color = lkColors.subtitle, fontSize = 14.sp)
             } else {
-                leaveList.forEach { leave ->
-                    LeaveItem(leave)
-                }
+                leaveResponse?.leave_requests?.forEach { LeaveItem(it) }
             }
         }
     }
 }
 
 @Composable
-fun TaskItem(task: Task) {
-    val colors = lkColors
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = colors.surface),
-        elevation = CardDefaults.cardElevation(2.dp)
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            // Header: Icon + Title + Progress (Checklist)
-            Row(verticalAlignment = Alignment.Top) {
-                StatusIcon(task.status)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1.0f)) {
-                    Text(
-                        task.title,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = colors.onSurface
-                    )
-                    val completed = task.checklist?.count { it.done } ?: 0
-                    val total = task.checklist?.size ?: 0
-                    if (total > 0) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Assignment,
-                                null,
-                                modifier = Modifier.size(12.dp),
-                                tint = colors.subtitle
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text("$completed/$total", color = colors.subtitle, fontSize = 12.sp)
-                        }
-                    }
-                }
-            }
-
-            HorizontalDivider(Modifier.padding(vertical = 12.dp), color = colors.divider)
-
-            // Details Grid
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                InfoColumn("Assignee", task.assignee?.name ?: "Unknown", task.assignee?.role ?: "")
-                InfoColumn("Assigned by", task.assigner?.name ?: "System", task.assigner?.role ?: "")
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                BadgeColumn("Status") { StatusBadge(task.status) }
-                BadgeColumn("Priority") { PriorityBadge(task.priority) }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                SimpleInfoColumn("Deadline", task.due_date.substringBefore("T"))
-                SimpleInfoColumn("Started", task.started_at?.substringBefore("T") ?: "—")
-                SimpleInfoColumn("Completed", task.completed_at?.substringBefore("T") ?: "—")
-            }
-        }
+fun SectionHeader(title: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(4.dp).height(16.dp).background(lkColors.primaryBlue, RoundedCornerShape(2.dp)))
+        Spacer(Modifier.width(8.dp))
+        Text(title, fontSize = 18.sp, fontWeight = FontWeight.Black, color = lkColors.onSurface)
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatusIcon(status: String) {
-    val color = when (status) {
-        "completed" -> Color(0xFF4CAF50)
-        "in_progress" -> Color(0xFF2196F3)
-        else -> Color(0xFFFF9800)
-    }
-    val icon = when (status) {
-        "completed" -> Icons.Default.CheckCircle
-        "in_progress" -> Icons.Default.AccessTime
-        else -> Icons.Default.ErrorOutline
-    }
-    Icon(icon, null, tint = color, modifier = Modifier.size(24.dp))
-}
-
-@Composable
-fun InfoColumn(label: String, name: String, role: String) {
-    Column {
-        Text(label, fontSize = 11.sp, color = lkColors.subtitle)
-        Text(name, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = lkColors.onSurface)
-        Text(role.replaceFirstChar { it.uppercase() }, fontSize = 11.sp, color = lkColors.subtitle)
-    }
-}
-
-@Composable
-fun SimpleInfoColumn(label: String, value: String) {
-    Column {
-        Text(label, fontSize = 11.sp, color = lkColors.subtitle)
-        Text(value, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = lkColors.onSurface)
-    }
-}
-
-@Composable
-fun BadgeColumn(label: String, content: @Composable () -> Unit) {
-    Column {
-        Text(label, fontSize = 11.sp, color = lkColors.subtitle)
-        Spacer(Modifier.height(4.dp))
-        content()
-    }
-}
-
-@Composable
-fun StatusBadge(status: String) {
-    val color = when (status) {
-        "completed" -> Color(0xFF4CAF50)
-        "in_progress" -> Color(0xFF2196F3)
-        else -> Color(0xFFFF9800)
-    }
-    val displayText = status.replace("_", " ").replaceFirstChar { it.uppercase() }
-    Surface(
-        color = color.copy(alpha = 0.15f),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.5f))
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                if (status == "completed") Icons.Default.CheckCircle else if (status == "in_progress") Icons.Default.AccessTime else Icons.Default.ErrorOutline,
-                null,
-                modifier = Modifier.size(12.dp),
-                tint = color
-            )
-            Spacer(Modifier.width(4.dp))
-            Text(
-                text = displayText,
-                color = color,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
-@Composable
-fun PriorityBadge(priority: String) {
-    val color = when (priority) {
-        "high" -> Color(0xFFE53935)
-        "medium" -> Color(0xFFFFB300)
-        "low" -> Color(0xFF43A047)
-        else -> Color.Gray
-    }
-    Surface(
-        color = color.copy(alpha = 0.15f),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.5f))
-    ) {
-        Text(
-            text = priority.replaceFirstChar { it.uppercase() },
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
-            color = color,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold
+fun DropdownSelector(modifier: Modifier, label: String, value: String, expanded: Boolean, onExpandedChange: (Boolean) -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = onExpandedChange, modifier = modifier) {
+        OutlinedTextField(
+            value = value, onValueChange = {}, readOnly = true,
+            label = { Text(label, fontSize = 10.sp) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = lkColors.divider)
         )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { onExpandedChange(false) }, content = content)
+    }
+}
+
+@Composable
+fun DatePickerField(modifier: Modifier, label: String, value: String, onClick: () -> Unit) {
+    OutlinedTextField(
+        value = value, onValueChange = {}, readOnly = true,
+        label = { Text(label, fontSize = 10.sp) },
+        trailingIcon = { Icon(Icons.Default.CalendarToday, null, Modifier.size(16.dp).clickable { onClick() }, tint = lkColors.primaryBlue) },
+        modifier = modifier.clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = lkColors.divider)
+    )
+}
+
+@Composable
+fun LeaveSummaryGrid(counts: LeaveCounts) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        LeaveSummaryMiniCard(Modifier.weight(1f), "Approved", counts.approved.toString(), Color(0xFF4CAF50))
+        LeaveSummaryMiniCard(Modifier.weight(1f), "Pending", counts.pending.toString(), Color(0xFFFF9800))
+        LeaveSummaryMiniCard(Modifier.weight(1f), "Rejected", counts.rejected.toString(), lkColors.brandRed)
+    }
+}
+
+@Composable
+fun LeaveSummaryMiniCard(modifier: Modifier, label: String, value: String, color: Color) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.05f)),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.2f)),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(value, fontWeight = FontWeight.Black, fontSize = 18.sp, color = color)
+            Text(label, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = lkColors.subtitle)
+        }
     }
 }
 
@@ -511,22 +595,22 @@ fun PriorityBadge(priority: String) {
 fun LeaveItem(leave: LeaveRequest) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = lkColors.surfaceElevated),
-        border = androidx.compose.foundation.BorderStroke(1.dp, lkColors.divider.copy(alpha = 0.5f))
+        colors = CardDefaults.cardColors(containerColor = lkColors.surface),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, lkColors.divider.copy(alpha = 0.3f))
     ) {
-        Column(Modifier.padding(12.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(leave.type.replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.Bold, color = lkColors.onSurface)
-                LeaveStatusBadge(leave.status)
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(leave.type.replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                val dateStr = if (leave.day_type == "full") {
+                    "${leave.from_date.substringBefore("T")} - ${leave.to_date.substringBefore("T")}"
+                } else {
+                    "${leave.from_date.substringBefore("T")} (${leave.session?.replace("_", " ")})"
+                }
+                Text(dateStr, fontSize = 11.sp, color = lkColors.subtitle)
+                Text("${leave.days} Day(s)", fontSize = 11.sp, color = lkColors.primaryBlue, fontWeight = FontWeight.Bold)
             }
-            Spacer(Modifier.height(4.dp))
-            val dateRange = if (leave.day_type == "full") "${leave.from_date.substringBefore("T")} to ${leave.to_date.substringBefore("T")}" else leave.from_date.substringBefore("T")
-            Text(dateRange, fontSize = 12.sp, color = lkColors.subtitle)
-            Text("${leave.days} day(s) • ${leave.day_type}", fontSize = 11.sp, color = lkColors.subtitle)
-            if (leave.reason.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Text(leave.reason, fontSize = 13.sp, color = lkColors.onSurface, maxLines = 2)
-            }
+            LeaveStatusBadge(leave.status)
         }
     }
 }
@@ -540,56 +624,69 @@ fun LeaveStatusBadge(status: String) {
     }
     Surface(
         color = color.copy(alpha = 0.1f),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.5f))
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.5f))
     ) {
         Text(
             status.replaceFirstChar { it.uppercase() },
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
             color = color,
             fontSize = 10.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.ExtraBold
         )
+    }
+}
+
+@Composable
+fun StatusIcon(status: String) {
+    val (icon, color) = when (status) {
+        "completed" -> Icons.Default.CheckCircle to Color(0xFF4CAF50)
+        "in_progress" -> Icons.Default.Sync to Color(0xFF2196F3)
+        else -> Icons.Default.Circle to Color(0xFFFF9800).copy(alpha = 0.3f)
+    }
+    Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
+}
+
+@Composable
+fun PriorityBadge(priority: String) {
+    val color = when (priority) {
+        "high" -> lkColors.brandRed
+        "medium" -> Color(0xFFFFB300)
+        else -> Color(0xFF4CAF50)
+    }
+    Text(
+        priority.uppercase(),
+        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp).background(color.copy(alpha = 0.1f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp),
+        color = color, fontSize = 8.sp, fontWeight = FontWeight.Black
+    )
+}
+
+@Composable
+fun ErrorPlaceholder(msg: String, onRetry: () -> Unit) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Default.ErrorOutline, null, Modifier.size(48.dp), tint = lkColors.brandRed)
+            Spacer(Modifier.height(16.dp))
+            Text(msg, fontWeight = FontWeight.Bold, color = lkColors.onSurface)
+            TextButton(onClick = onRetry) { Text("Retry") }
+        }
+    }
+}
+
+@Composable
+fun EmptyPlaceholder(msg: String) {
+    Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Default.Inbox, null, Modifier.size(48.dp), tint = lkColors.divider)
+            Spacer(Modifier.height(8.dp))
+            Text(msg, color = lkColors.subtitle, fontSize = 14.sp)
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MyDatePickerDialog(
-    initialDate: LocalDate = LocalDate.now(),
-    onDateSelected: (LocalDate) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = initialDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-    )
-
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = {
-                datePickerState.selectedDateMillis?.let {
-                    onDateSelected(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate())
-                }
-            }) { Text("OK") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    ) {
-        DatePicker(state = datePickerState)
-    }
-}
-
-private fun fetchLeaves(onResult: (List<LeaveRequest>) -> Unit) {
-    kotlinx.coroutines.MainScope().launch {
-        try {
-            val response = com.room.roomy.retrofit.RetrofitInstance.retrofits.listLeaves()
-            if (response.isSuccessful) {
-                onResult(response.body()?.leave_requests ?: emptyList())
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
+fun MyDatePickerDialog(date: LocalDate, onSel: (LocalDate) -> Unit, onDim: () -> Unit) {
+    val state = rememberDatePickerState(date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli())
+    DatePickerDialog(onDismissRequest = onDim, confirmButton = { TextButton(onClick = { state.selectedDateMillis?.let { onSel(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()) } }) { Text("OK") } }, dismissButton = { TextButton(onClick = onDim) { Text("Cancel") } }) { DatePicker(state) }
 }

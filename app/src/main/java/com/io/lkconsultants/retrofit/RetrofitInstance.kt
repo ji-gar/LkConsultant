@@ -12,28 +12,16 @@ import com.io.lkconsultants.model.Message
 import com.io.lkconsultants.model.MessageResponse
 import com.io.lkconsultants.model.SendMessageResponse
 import com.io.lkconsultants.model.UsersListResponse
-import com.io.lkconsultants.model.User
-import com.io.lkconsultants.model.UserStatus
 import com.io.lkconsultants.model.UserStatusListResponse
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody
+import okhttp3.ResponseBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Response
-
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import retrofit2.http.Body
-import retrofit2.http.GET
-import retrofit2.http.HeaderMap
-import retrofit2.http.Multipart
-import retrofit2.http.POST
-import retrofit2.http.PUT
-import retrofit2.http.Part
-import retrofit2.http.PartMap
-import retrofit2.http.Query
-import retrofit2.http.QueryMap
-import retrofit2.http.Url
+import retrofit2.http.*
 
 object RetrofitInstance {
 
@@ -43,12 +31,10 @@ object RetrofitInstance {
             level= HttpLoggingInterceptor.Level.BODY
         }
 
-
          val okHttpClient= OkHttpClient.Builder()
              .addInterceptor(AuthInterceptor())
              .addInterceptor(okhttpBody)
              .build()
-
 
         val retrofit = Retrofit.Builder()
             .baseUrl(URL.BASE_URL)
@@ -60,66 +46,51 @@ object RetrofitInstance {
 
     }
 }
-interface  getApiService  {
+
+interface getApiService {
     @POST("auth/login")
-    suspend fun login(
-        @Body request: LoginRequest
-    ): Response<LoginResponse>
+    suspend fun login(@Body request: LoginRequest): Response<LoginResponse>
 
     @GET("files")
     suspend fun getFiles(
-        @Query("type")     type: String? = null,   // "sent" | "received" | "all" | null = all
-        @Query("user_id")  userId: Int?  = null,
-        @Query("page")     page: Int     = 1,
-        @Query("per_page") perPage: Int  = 20
+        @Query("type") type: String? = null,
+        @Query("user_id") userId: Int? = null,
+        @Query("page") page: Int = 1,
+        @Query("per_page") perPage: Int = 20
     ): Response<FilesResponse>
 
-    // Users
     @GET("chat/conversations")
     suspend fun getConversations(): Response<List<ConversationResponse>>
 
     @GET("chat/messages")
-    suspend fun getMessages(
-        @Query("conversationId") conversationId: Int
-    ): Response<Message>
-
+    suspend fun getMessages(@Query("conversationId") conversationId: Int): Response<Message>
 
     @Multipart
     @POST("chat/messages")
     suspend fun sendMessage(
         @Part("conversationId") conversationId: RequestBody,
-        @Part("text")           text: RequestBody,
-        @Part               file: MultipartBody.Part? = null
+        @Part("text") text: RequestBody,
+        @Part file: MultipartBody.Part? = null
     ): Response<SendMessageResponse>
 
-    // Mark all messages in a conversation as read up to now
     @POST("chat/messages/read")
-    suspend fun markRead(
-        @Body request: MarkReadRequest
-    ): Response<MarkReadResponse>
+    suspend fun markRead(@Body request: MarkReadRequest): Response<MarkReadResponse>
 
-    // Presence: heartbeat marks current user online; called every 60s while in foreground
     @POST("status/heartbeat")
-    suspend fun heartbeat(): Response<okhttp3.ResponseBody>
+    suspend fun heartbeat(): Response<ResponseBody>
 
-    // Presence: poll online status for all users (or a comma-separated subset)
     @GET("status/users")
-    suspend fun getUserStatuses(
-        @Query("user_ids") userIds: String? = null
-    ): Response<UserStatusListResponse>
+    suspend fun getUserStatuses(@Query("user_ids") userIds: String? = null): Response<UserStatusListResponse>
 
-    // List all users (for starting a new chat)
     @GET("users")
     suspend fun getUsers(): Response<UsersListResponse>
 
-    // Create (or fetch existing) 1-1 conversation with a user
     @POST("chat/conversations")
-    suspend fun createConversation(
-        @Body request: CreateConversationRequest
-    ): Response<CreatedConversation>
+    suspend fun createConversation(@Body request: CreateConversationRequest): Response<CreatedConversation>
 
-    // ── Employee App Endpoints ──────────────────────────────────────────────
+    // ── Employee App Endpoints (EMS Guide) ──────────────────────────────────────────
 
+    // ── Leave ──────────────────────────────────────────
     @GET("leave-requests")
     suspend fun listLeaves(
         @Query("status") status: String? = null,
@@ -129,26 +100,81 @@ interface  getApiService  {
     ): Response<LeaveListResponse>
 
     @POST("leave-requests")
-    suspend fun applyLeave(
-        @Body body: ApplyLeaveRequest
-    ): Response<ApplyLeaveResponse>
+    suspend fun applyLeave(@Body body: ApplyLeaveRequest): Response<ApplyLeaveResponse>
 
+    @PUT("leave-requests/{id}/review")
+    suspend fun reviewLeave(@Path("id") id: Int, @Body body: ReviewLeaveRequest): Response<ApplyLeaveResponse>
+
+    @GET("leave-requests/upcoming")
+    suspend fun upcomingLeaves(): Response<UpcomingLeavesResponse>
+
+    @GET("leave-requests/report")
+    suspend fun leaveReport(
+        @Query("from") from: String? = null,
+        @Query("to") to: String? = null
+    ): Response<LeaveReportResponse>
+
+    @DELETE("leave-requests/{id}")
+    suspend fun deleteLeave(@Path("id") id: Int): Response<MessageResponse>
+
+    // ── Task ───────────────────────────────────────────
+    @GET("tasks")
+    suspend fun listTasks(
+        @Query("today") today: Int? = null,
+        @Query("status") status: String? = null,
+        @Query("approval_status") approvalStatus: String? = null,
+        @Query("search") search: String? = null,
+        @Query("page") page: Int? = null,
+        @Query("per_page") perPage: Int? = null
+    ): Response<TaskListResponse>
+
+    @POST("tasks")
+    suspend fun createTask(@Body body: CreateTaskRequest): Response<TaskResponse>
+
+    @POST("tasks/{id}/approve")
+    suspend fun approveTask(@Path("id") id: Int): Response<TaskResponse>
+
+    @POST("tasks/{id}/reject")
+    suspend fun rejectTask(@Path("id") id: Int): Response<TaskResponse>
+
+    @POST("tasks/{id}/delegate")
+    suspend fun delegateTask(@Path("id") id: Int, @Body body: AssignToRequest): Response<TaskResponse>
+
+    @PUT("tasks/{id}/status")
+    suspend fun updateTaskStatus(@Path("id") id: Int, @Body body: UpdateStatusRequest): Response<TaskResponse>
+
+    @PUT("tasks/{id}/complete")
+    suspend fun completeTask(@Path("id") id: Int): Response<TaskResponse>
+
+    @PUT("tasks/{id}/checklist")
+    suspend fun toggleChecklist(@Path("id") id: Int, @Body body: ToggleChecklistRequest): Response<TaskResponse>
+
+    @POST("tasks/{id}/reassign")
+    suspend fun reassignTask(@Path("id") id: Int, @Body body: AssignToRequest): Response<TaskResponse>
+
+    @POST("tasks/{id}/complete-self")
+    suspend fun completeSelf(@Path("id") id: Int): Response<TaskResponse>
+
+    @DELETE("tasks/{id}/revoke")
+    suspend fun revokeTask(@Path("id") id: Int): Response<MessageResponse>
+
+    @DELETE("tasks/{id}")
+    suspend fun deleteTask(@Path("id") id: Int): Response<MessageResponse>
+
+    @GET("tasks/{id}/activities")
+    suspend fun taskActivities(@Path("id") id: Int): Response<TaskActivitiesResponse>
+
+    @Streaming
+    @GET("tasks/export")
+    suspend fun exportTasks(
+        @Query("status") status: String? = null,
+        @Query("search") search: String? = null
+    ): Response<ResponseBody>
+    
+    // Legacy mapping
     @GET("tasks")
     suspend fun getTasks(): Response<TaskListResponse>
 }
-
-data class Pagination(
-    val current_page: Int,
-    val per_page: Int,
-    val total: Int,
-    val last_page: Int
-)
-
-data class LeaveListResponse(
-    val leave_requests: List<LeaveRequest>,
-    val counts: TaskCounts?, // Reusing TaskCounts or similar structure if compatible
-    val pagination: Pagination?
-)
 
 data class UserBrief(
     val id: Int,
@@ -157,31 +183,18 @@ data class UserBrief(
     val role: String? = null
 )
 
-data class ApplyLeaveRequest(
-    val type: String,            // annual | casual | sick | unpaid
-    val day_type: String,        // full | half
-    val from_date: String,       // YYYY-MM-DD
-    val to_date: String? = null,   // required when day_type = full
-    val session: String? = null,   // required when day_type = half (first_half | second_half)
-    val reason: String
-)
-
-data class ApplyLeaveResponse(
-    val message: String,
-    val leave_request: LeaveRequest?
-)
-
+// ── Leave ──────────────────────────────────────────────
 data class LeaveRequest(
     val id: Int,
     val user_id: Int,
-    val type: String,
+    val type: String,            // annual | casual | sick | unpaid
     val from_date: String,
     val to_date: String,
-    val day_type: String,
-    val session: String?,
+    val day_type: String,        // full | half
+    val session: String?,        // first_half | second_half | null
     val days: Double,
     val reason: String,
-    val status: String,
+    val status: String,          // pending | approved | rejected
     val reviewed_by: Int?,
     val reviewed_at: String?,
     val review_note: String?,
@@ -191,6 +204,44 @@ data class LeaveRequest(
     val reviewer: UserBrief?
 )
 
+data class LeaveListResponse(
+    val leave_requests: List<LeaveRequest>,
+    val counts: LeaveCounts,
+    val pagination: Pagination
+)
+
+data class LeaveCounts(val pending: Int, val approved: Int, val rejected: Int)
+
+data class ApplyLeaveRequest(
+    val type: String,
+    val day_type: String,
+    val from_date: String,
+    val to_date: String? = null,   // required when day_type = full
+    val session: String? = null,   // required when day_type = half
+    val reason: String
+)
+
+data class ReviewLeaveRequest(val status: String, val review_note: String? = null)
+
+data class LeaveReportResponse(
+    val from: String,
+    val to: String,
+    val report: List<LeaveReportRow>
+)
+
+data class LeaveReportRow(
+    val user: UserBrief,
+    val annual: Double,
+    val casual: Double,
+    val sick: Double,
+    val unpaid: Double,
+    val total: Double
+)
+
+data class ApplyLeaveResponse(val message: String, val leave_request: LeaveRequest)
+data class UpcomingLeavesResponse(val leave_requests: List<LeaveRequest>, val window_days: Int)
+
+// ── Task ───────────────────────────────────────────────
 data class ChecklistItem(val id: Int? = null, val text: String, val done: Boolean = false)
 
 data class Task(
@@ -217,7 +268,8 @@ data class Task(
 
 data class TaskListResponse(
     val tasks: List<Task>,
-    val counts: TaskCounts? = null
+    val counts: TaskCounts,
+    val pagination: Pagination? = null  // null when today=1
 )
 
 data class TaskCounts(
@@ -229,3 +281,42 @@ data class TaskCounts(
     val awaiting_approval: Int
 )
 
+data class CreateTaskRequest(
+    val title: String,
+    val description: String? = null,
+    val assigned_to: Int,
+    val due_date: String,
+    val priority: String? = null,
+    val checklist: List<ChecklistItem>? = null,
+    val paths: List<String>? = null
+)
+
+data class AssignToRequest(val assigned_to: Int)         // delegate / reassign
+data class UpdateStatusRequest(val status: String)        // pending | in_progress
+data class ToggleChecklistRequest(val item_id: Int, val done: Boolean)
+
+data class TaskResponse(val message: String, val task: Task)
+
+data class Pagination(
+    val current_page: Int,
+    val per_page: Int,
+    val total: Int,
+    val last_page: Int
+)
+
+data class TaskActivitiesResponse(val activities: List<TaskActivity>)
+
+data class TaskActivity(
+    val id: Int,
+    val task_id: Int,
+    val actor_id: Int?,
+    val action: String,
+    val from_user_id: Int?,
+    val to_user_id: Int?,
+    val note: String?,
+    val created_at: String?,
+    val updated_at: String?,
+    val actor: UserBrief?,
+    val from_user: UserBrief?,
+    val to_user: UserBrief?
+)
