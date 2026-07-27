@@ -13,6 +13,8 @@ import com.io.lkconsultants.model.MessageResponse
 import com.io.lkconsultants.model.SendMessageResponse
 import com.io.lkconsultants.model.UsersListResponse
 import com.io.lkconsultants.model.UserStatusListResponse
+import com.google.gson.Gson
+import android.util.Log
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody
@@ -352,3 +354,30 @@ data class TaskActivity(
     val from_user: UserBrief?,
     val to_user: UserBrief?
 )
+
+data class ApiError(
+    val message: String?,
+    val error: String?,
+    val errors: Map<String, List<String>>?
+) {
+    fun text(fallback: String) =
+        errors?.values?.firstOrNull()?.firstOrNull() ?: message ?: error ?: fallback
+}
+
+fun <T> Response<T>.getErrorText(fallback: String = "Something went wrong"): String {
+    return try {
+        val errorBody = errorBody()?.string()
+        Log.d("RetrofitInstance", "Error Body: $errorBody")
+        if (errorBody != null) {
+            val apiError = Gson().fromJson(errorBody, ApiError::class.java)
+            val msg = apiError.text(fallback)
+            Log.d("RetrofitInstance", "Parsed Message: $msg")
+            msg
+        } else {
+            fallback
+        }
+    } catch (e: Exception) {
+        Log.e("RetrofitInstance", "Error parsing error body", e)
+        fallback
+    }
+}

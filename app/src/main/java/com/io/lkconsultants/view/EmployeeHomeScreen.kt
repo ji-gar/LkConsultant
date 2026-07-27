@@ -28,6 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import com.io.lkconsultants.color.lkColors
 import com.room.roomy.retrofit.*
 import kotlinx.coroutines.launch
@@ -41,6 +43,7 @@ import java.time.format.DateTimeFormatter
 fun EmployeeHomeScreen(onLogout: () -> Unit) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val colors = lkColors
+    val snackbarHostState = remember { SnackbarHostState() }
 
     Scaffold(
         topBar = {
@@ -100,20 +103,21 @@ fun EmployeeHomeScreen(onLogout: () -> Unit) {
                 )
             }
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = colors.background
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             if (selectedTab == 0) {
-                TaskListScreen()
+                TaskListScreen(snackbarHostState)
             } else {
-                LeaveRequestScreen()
+                LeaveRequestScreen(snackbarHostState)
             }
         }
     }
 }
 
 @Composable
-fun TaskListScreen() {
+fun TaskListScreen(snackbarHostState: SnackbarHostState) {
     var taskResponse by remember { mutableStateOf<TaskListResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -199,7 +203,7 @@ fun TaskListScreen() {
                     }
                 } else {
                     items(tasks) { task ->
-                    TaskItem(task, onAction = { loadTasks() })
+                    TaskItem(task, snackbarHostState, onAction = { loadTasks() })
                 }
                 }
             }
@@ -291,9 +295,10 @@ fun SummaryCard(modifier: Modifier, label: String, value: String, color: Color, 
 }
 
 @Composable
-fun TaskItem(task: Task, onAction: () -> Unit) {
+fun TaskItem(task: Task, snackbarHostState: SnackbarHostState, onAction: () -> Unit) {
     val colors = lkColors
     val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = colors.surface),
@@ -359,8 +364,17 @@ fun TaskItem(task: Task, onAction: () -> Unit) {
                                 scope.launch {
                                     try {
                                         val res = RetrofitInstance.retrofits.updateTaskStatus(task.id, UpdateStatusRequest("in_progress"))
-                                        if (res.isSuccessful) onAction()
-                                    } catch (e: Exception) { e.printStackTrace() }
+                                        if (res.isSuccessful) {
+                                            onAction()
+                                        } else {
+                                            val errorMsg = res.getErrorText("Failed to start task")
+                                            snackbarHostState.showSnackbar(errorMsg)
+                                            Toast.makeText(ctx, errorMsg, Toast.LENGTH_LONG).show()
+                                        }
+                                    } catch (e: Exception) { 
+                                        snackbarHostState.showSnackbar("Network Error")
+                                        Toast.makeText(ctx, "Network Error", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             },
                             modifier = Modifier.height(36.dp),
@@ -376,8 +390,17 @@ fun TaskItem(task: Task, onAction: () -> Unit) {
                                 scope.launch {
                                     try {
                                         val res = RetrofitInstance.retrofits.completeTask(task.id)
-                                        if (res.isSuccessful) onAction()
-                                    } catch (e: Exception) { e.printStackTrace() }
+                                        if (res.isSuccessful) {
+                                            onAction()
+                                        } else {
+                                            val errorMsg = res.getErrorText("Failed to complete task")
+                                            snackbarHostState.showSnackbar(errorMsg)
+                                            Toast.makeText(ctx, errorMsg, Toast.LENGTH_LONG).show()
+                                        }
+                                    } catch (e: Exception) { 
+                                        snackbarHostState.showSnackbar("Network Error")
+                                        Toast.makeText(ctx, "Network Error", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             },
                             modifier = Modifier.height(36.dp),
@@ -442,7 +465,7 @@ fun DeadlineBadge(date: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LeaveRequestScreen() {
+fun LeaveRequestScreen(snackbarHostState: SnackbarHostState) {
     var leaveType by remember { mutableStateOf("casual") }
     var dayType by remember { mutableStateOf("full") }
     var session by remember { mutableStateOf("first_half") }
@@ -459,7 +482,8 @@ fun LeaveRequestScreen() {
     var sessionExpanded by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val ctx = LocalContext.current
+    // val snackbarHostState = remember { SnackbarHostState() } // Handled by parent
 
     var leaveResponse by remember { mutableStateOf<LeaveListResponse?>(null) }
     var policyResponse by remember { mutableStateOf<LeavePolicyResponse?>(null) }
@@ -528,19 +552,14 @@ fun LeaveRequestScreen() {
         )
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = Color.Transparent
-    ) { padding ->
-        Column(
-            Modifier
-                .padding(padding)
-                .padding(16.dp)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            SectionHeader("Apply for Leave")
+    Column(
+        Modifier
+            .padding(16.dp)
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        SectionHeader("Apply for Leave")
 
             Card(
                 colors = CardDefaults.cardColors(containerColor = lkColors.surface),
@@ -619,8 +638,20 @@ fun LeaveRequestScreen() {
                             scope.launch {
                                 try {
                                     val res = RetrofitInstance.retrofits.applyLeave(request)
-                                    if (res.isSuccessful) { snackbarHostState.showSnackbar("Success!"); reason = ""; loadLeaves() }
-                                } catch (e: Exception) { snackbarHostState.showSnackbar("Error") }
+                                    if (res.isSuccessful) { 
+                                        snackbarHostState.showSnackbar("Success!")
+                                        Toast.makeText(ctx, "Success!", Toast.LENGTH_SHORT).show()
+                                        reason = ""
+                                        loadLeaves() 
+                                    } else {
+                                        val errorMsg = res.getErrorText("Failed to apply leave")
+                                        snackbarHostState.showSnackbar(errorMsg)
+                                        Toast.makeText(ctx, errorMsg, Toast.LENGTH_LONG).show()
+                                    }
+                                } catch (e: Exception) { 
+                                    snackbarHostState.showSnackbar("Network Error") 
+                                    Toast.makeText(ctx, "Network Error", Toast.LENGTH_SHORT).show()
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth().height(54.dp),
@@ -643,7 +674,6 @@ fun LeaveRequestScreen() {
                 leaveResponse?.leave_requests?.forEach { LeaveItem(it) }
             }
         }
-    }
 }
 
 @Composable
