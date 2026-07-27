@@ -117,6 +117,12 @@ interface getApiService {
     @DELETE("leave-requests/{id}")
     suspend fun deleteLeave(@Path("id") id: Int): Response<MessageResponse>
 
+    @GET("leave-policy")
+    suspend fun getLeavePolicy(): Response<LeavePolicyResponse>
+
+    @GET("holidays")
+    suspend fun getHolidays(@Query("year") year: Int? = null): Response<HolidayResponse>
+
     // ── Task ───────────────────────────────────────────
     @GET("tasks")
     suspend fun listTasks(
@@ -211,6 +217,32 @@ data class LeaveListResponse(
 )
 
 data class LeaveCounts(val pending: Int, val approved: Int, val rejected: Int)
+
+data class LeavePolicyResponse(
+    val about: String?,
+    val policies: List<LeavePolicy>
+)
+
+data class LeavePolicy(
+    val id: Int,
+    val name: String,
+    val count: Double,
+    val min_notice_days: Int,
+    val description: String?,
+    val used: Double,
+    val remaining: Double
+)
+
+data class HolidayResponse(
+    val holidays: List<Holiday>
+)
+
+data class Holiday(
+    val id: Int,
+    val name: String,
+    val date: String,
+    val description: String?
+)
 
 data class ApplyLeaveRequest(
     val type: String,

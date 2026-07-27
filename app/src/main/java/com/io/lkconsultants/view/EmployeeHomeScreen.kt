@@ -199,8 +199,8 @@ fun TaskListScreen() {
                     }
                 } else {
                     items(tasks) { task ->
-                        TaskItem(task)
-                    }
+                    TaskItem(task, onAction = { loadTasks() })
+                }
                 }
             }
         }
@@ -291,8 +291,9 @@ fun SummaryCard(modifier: Modifier, label: String, value: String, color: Color, 
 }
 
 @Composable
-fun TaskItem(task: Task) {
+fun TaskItem(task: Task, onAction: () -> Unit) {
     val colors = lkColors
+    val scope = rememberCoroutineScope()
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = colors.surface),
@@ -321,6 +322,8 @@ fun TaskItem(task: Task) {
                         )
                         Spacer(Modifier.width(8.dp))
                         PriorityBadge(task.priority)
+                        Spacer(Modifier.width(4.dp))
+                        ApprovalStatusBadge(task.approval_status)
                     }
                     task.description?.let { 
                         Text(it, fontSize = 12.sp, color = colors.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -344,6 +347,48 @@ fun TaskItem(task: Task) {
             ) {
                 UserMiniProfile("Assigner", task.assigner)
                 DeadlineBadge(task.due_date)
+            }
+
+            // Task Actions
+            if (task.status != "completed" && task.approval_status != "pending" && task.approval_status != "rejected") {
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    if (task.status == "pending") {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    try {
+                                        val res = RetrofitInstance.retrofits.updateTaskStatus(task.id, UpdateStatusRequest("in_progress"))
+                                        if (res.isSuccessful) onAction()
+                                    } catch (e: Exception) { e.printStackTrace() }
+                                }
+                            },
+                            modifier = Modifier.height(36.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = colors.primaryBlue)
+                        ) {
+                            Text("Start Task", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    } else if (task.status == "in_progress") {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    try {
+                                        val res = RetrofitInstance.retrofits.completeTask(task.id)
+                                        if (res.isSuccessful) onAction()
+                                    } catch (e: Exception) { e.printStackTrace() }
+                                }
+                            },
+                            modifier = Modifier.height(36.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                        ) {
+                            Text("Complete Task", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
         }
     }
@@ -417,6 +462,8 @@ fun LeaveRequestScreen() {
     val snackbarHostState = remember { SnackbarHostState() }
 
     var leaveResponse by remember { mutableStateOf<LeaveListResponse?>(null) }
+    var policyResponse by remember { mutableStateOf<LeavePolicyResponse?>(null) }
+    var holidayResponse by remember { mutableStateOf<HolidayResponse?>(null) }
     var isLoadingList by remember { mutableStateOf(true) }
 
     val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
@@ -427,6 +474,21 @@ fun LeaveRequestScreen() {
             try {
                 val response = RetrofitInstance.retrofits.listLeaves()
                 if (response.isSuccessful) leaveResponse = response.body()
+                
+                val pResponse = RetrofitInstance.retrofits.getLeavePolicy()
+                if (pResponse.isSuccessful) {
+                    policyResponse = pResponse.body()
+                    // Initialize leaveType with first policy name if not already set
+                    if (leaveType.isEmpty() || leaveType == "casual") {
+                        policyResponse?.policies?.firstOrNull { it.remaining > 0 }?.let {
+                            leaveType = it.name
+                        }
+                    }
+                }
+
+                val hResponse = RetrofitInstance.retrofits.getHolidays()
+                if (hResponse.isSuccessful) holidayResponse = hResponse.body()
+                
             } catch (e: Exception) { e.printStackTrace() }
             finally { isLoadingList = false }
         }
@@ -434,12 +496,36 @@ fun LeaveRequestScreen() {
 
     LaunchedEffect(Unit) { loadLeaves() }
 
+    val holidays = holidayResponse?.holidays?.map { it.date } ?: emptyList()
+    val minDate = policyResponse?.policies?.find { it.name == leaveType }?.let { 
+        LocalDate.now().plusDays(it.min_notice_days.toLong()) 
+    }
+
     if (showStartPicker) {
-        MyDatePickerDialog(startDate, { startDate = it; if (endDate.isBefore(it)) endDate = it; showStartPicker = false }, { showStartPicker = false })
+        MyDatePickerDialog(
+            date = startDate, 
+            minDate = minDate,
+            holidays = holidays,
+            onSel = { 
+                startDate = it
+                if (endDate.isBefore(it)) endDate = it
+                showStartPicker = false 
+            }, 
+            onDim = { showStartPicker = false }
+        )
     }
 
     if (showEndPicker) {
-        MyDatePickerDialog(endDate, { endDate = it; showEndPicker = false }, { showEndPicker = false })
+        MyDatePickerDialog(
+            date = endDate, 
+            minDate = startDate, // End date cannot be before start date
+            holidays = holidays,
+            onSel = { 
+                endDate = it
+                showEndPicker = false 
+            }, 
+            onDim = { showEndPicker = false }
+        )
     }
 
     Scaffold(
@@ -464,9 +550,37 @@ fun LeaveRequestScreen() {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     // Type & Day Type Row
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        DropdownSelector(Modifier.weight(1f), "Type", leaveType.replaceFirstChar { it.uppercase() }, typeExpanded, { typeExpanded = it }) {
-                            listOf("annual", "casual", "sick", "unpaid").forEach { t ->
-                                DropdownMenuItem(text = { Text(t.replaceFirstChar { it.uppercase() }) }, onClick = { leaveType = t; typeExpanded = false })
+                        DropdownSelector(
+                            Modifier.weight(1f), 
+                            "Type", 
+                            leaveType.replaceFirstChar { it.uppercase() }, 
+                            typeExpanded, 
+                            { typeExpanded = it }
+                        ) {
+                            policyResponse?.policies?.forEach { p ->
+                                val isAvailable = p.remaining > 0
+                                DropdownMenuItem(
+                                    text = { 
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text(p.name)
+                                            if (!isAvailable) {
+                                                Text(" (Exhausted)", fontSize = 10.sp, color = lkColors.brandRed)
+                                            } else {
+                                                Text(" (${p.remaining.toInt()} left)", fontSize = 10.sp, color = lkColors.primaryBlue)
+                                            }
+                                        }
+                                    }, 
+                                    onClick = { 
+                                        leaveType = p.name
+                                        typeExpanded = false 
+                                    },
+                                    enabled = isAvailable
+                                )
+                            }
+                            if (policyResponse == null) {
+                                listOf("annual", "casual", "sick", "unpaid").forEach { t ->
+                                    DropdownMenuItem(text = { Text(t.replaceFirstChar { it.uppercase() }) }, onClick = { leaveType = t; typeExpanded = false })
+                                }
                             }
                         }
                         DropdownSelector(Modifier.weight(1f), "Day", dayType.replaceFirstChar { it.uppercase() }, dayTypeExpanded, { dayTypeExpanded = it }) {
@@ -519,6 +633,8 @@ fun LeaveRequestScreen() {
 
             leaveResponse?.counts?.let { LeaveSummaryGrid(it) }
 
+            policyResponse?.let { PolicySummaryGrid(it.policies) }
+
             SectionHeader("History")
             
             if (isLoadingList) {
@@ -526,6 +642,53 @@ fun LeaveRequestScreen() {
             } else {
                 leaveResponse?.leave_requests?.forEach { LeaveItem(it) }
             }
+        }
+    }
+}
+
+@Composable
+fun PolicySummaryGrid(policies: List<LeavePolicy>) {
+    SectionHeader("Policy Status")
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(vertical = 4.dp)
+    ) {
+        items(policies) { policy ->
+            PolicyCard(policy)
+        }
+    }
+}
+
+@Composable
+fun PolicyCard(policy: LeavePolicy) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = lkColors.surface),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, lkColors.divider.copy(alpha = 0.3f)),
+        modifier = Modifier.width(140.dp)
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Text(policy.name, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp, color = lkColors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text("Used", fontSize = 9.sp, color = lkColors.subtitle)
+                    Text(policy.used.toInt().toString(), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = lkColors.onSurface)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("Left", fontSize = 9.sp, color = lkColors.subtitle)
+                    Text(policy.remaining.toInt().toString(), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = lkColors.primaryBlue)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            val progress = if (policy.count > 0) (policy.used / policy.count).toFloat() else 0f
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+                color = if (policy.remaining <= 0) lkColors.brandRed else lkColors.primaryBlue,
+                trackColor = lkColors.divider
+            )
         }
     }
 }
@@ -662,6 +825,23 @@ fun PriorityBadge(priority: String) {
 }
 
 @Composable
+fun ApprovalStatusBadge(status: String) {
+    val color = when (status) {
+        "approved" -> Color(0xFF4CAF50)
+        "rejected" -> lkColors.brandRed
+        "pending" -> Color(0xFFFF9800)
+        else -> lkColors.subtitle
+    }
+    if (status != "not_required") {
+        Text(
+            status.replace("_", " ").uppercase(),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp).background(color.copy(alpha = 0.1f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp),
+            color = color, fontSize = 8.sp, fontWeight = FontWeight.Black
+        )
+    }
+}
+
+@Composable
 fun ErrorPlaceholder(msg: String, onRetry: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -686,7 +866,50 @@ fun EmptyPlaceholder(msg: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MyDatePickerDialog(date: LocalDate, onSel: (LocalDate) -> Unit, onDim: () -> Unit) {
-    val state = rememberDatePickerState(date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli())
-    DatePickerDialog(onDismissRequest = onDim, confirmButton = { TextButton(onClick = { state.selectedDateMillis?.let { onSel(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()) } }) { Text("OK") } }, dismissButton = { TextButton(onClick = onDim) { Text("Cancel") } }) { DatePicker(state) }
+fun MyDatePickerDialog(
+    date: LocalDate, 
+    minDate: LocalDate? = null, 
+    holidays: List<String> = emptyList(),
+    onSel: (LocalDate) -> Unit, 
+    onDim: () -> Unit
+) {
+    val selectableDates = remember(minDate, holidays) {
+        object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                val dateAtUtc = Instant.ofEpochMilli(utcTimeMillis).atZone(ZoneId.of("UTC")).toLocalDate()
+                
+                // Min Date Check
+                if (minDate != null && dateAtUtc.isBefore(minDate)) return false
+                
+                // Sunday Check
+                if (dateAtUtc.dayOfWeek == java.time.DayOfWeek.SUNDAY) return false
+                
+                // Holiday Check
+                val dateStr = dateAtUtc.format(DateTimeFormatter.ISO_LOCAL_DATE) // yyyy-MM-dd
+                if (holidays.any { it.startsWith(dateStr) }) return false
+                
+                return true
+            }
+        }
+    }
+    
+    val state = rememberDatePickerState(
+        initialSelectedDateMillis = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+        selectableDates = selectableDates
+    )
+    DatePickerDialog(
+        onDismissRequest = onDim, 
+        confirmButton = { 
+            TextButton(onClick = { 
+                state.selectedDateMillis?.let { 
+                    onSel(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()) 
+                } 
+            }) { Text("OK") } 
+        }, 
+        dismissButton = { 
+            TextButton(onClick = onDim) { Text("Cancel") } 
+        }
+    ) { 
+        DatePicker(state) 
+    }
 }

@@ -177,9 +177,6 @@ object ReverbManager {
     }
 }
 
-/**
- * Convenience listener that decodes the JSON event payload for you.
- */
 abstract class ChatChannelListener : PrivateChannelEventListener {
     abstract fun onMessageSent(json: String)
     open fun onMessagesRead(json: String) {}
